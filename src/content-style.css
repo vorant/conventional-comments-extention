@@ -1,0 +1,38 @@
+.cc-label-panel {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0;
+  padding: 8px;
+  width: 100%;
+  border: 1px solid var(--borderColor-default, #d0d7de);
+  border-radius: 6px;
+  background: var(--bgColor-muted, #f6f8fa);
+}
+
+.cc-label-button {
+  appearance: none;
+  border: 1px solid var(--borderColor-default, #d0d7de);
+  border-radius: 6px;
+  background: var(--button-default-bgColor-rest, #f6f8fa);
+  color: var(--fgColor-default, #24292f);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.cc-label-button:hover,
+.cc-label-button:focus {
+  background: var(--button-default-bgColor-hover, #f3f4f6);
+  border-color: var(--borderColor-muted, #afb8c1);
+}
+
+.cc-label-button:focus {
+  outline: 2px solid var(--focus-outlineColor, #0969da);
+  outline-offset: 1px;
+}
