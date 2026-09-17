@@ -14,7 +14,16 @@
   ];
 
   const LABEL_STORAGE_KEY = "ccLabels";
+  const THEME_STORAGE_KEY = "ccTheme";
+  const THEMES = ["light", "dark"];
+  const ICONS = {
+    moon: String.fromCodePoint(0xf186),
+    sun: String.fromCodePoint(0xf185),
+    trash: String.fromCodePoint(0xf01b4)
+  };
+
   let labels = [];
+  let theme = "light";
 
   function getStorageArea() {
     return globalThis.chrome && chrome.storage && chrome.storage.sync
@@ -62,6 +71,39 @@
     });
   }
 
+  function normalizeTheme(value) {
+    return THEMES.includes(value) ? value : "light";
+  }
+
+  function readTheme() {
+    const storage = getStorageArea();
+    if (!storage || typeof storage.get !== "function") {
+      return Promise.resolve("light");
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const settle = (value) => {
+        if (!settled) {
+          settled = true;
+          resolve(normalizeTheme(value));
+        }
+      };
+
+      try {
+        const result = storage.get(THEME_STORAGE_KEY, (items) => {
+          settle(items && items[THEME_STORAGE_KEY]);
+        });
+
+        if (result && typeof result.then === "function") {
+          result.then((items) => settle(items && items[THEME_STORAGE_KEY]), () => settle(undefined));
+        }
+      } catch (error) {
+        settle(undefined);
+      }
+    });
+  }
+
   function saveLabels() {
     const storage = getStorageArea();
     const savedLabels = normalizeLabels(labels, []);
@@ -81,6 +123,39 @@
     });
   }
 
+  function saveTheme() {
+    const storage = getStorageArea();
+    if (!storage || typeof storage.set !== "function") {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const result = storage.set({ [THEME_STORAGE_KEY]: theme }, resolve);
+        if (result && typeof result.then === "function") {
+          result.then(resolve, resolve);
+        }
+      } catch (error) {
+        resolve();
+      }
+    });
+  }
+
+  function applyTheme() {
+    document.body.setAttribute("data-theme", theme);
+
+    const toggle = document.getElementById("theme-toggle");
+    toggle.className = "icon-button theme-toggle nf-icon";
+    toggle.textContent = theme === "dark" ? ICONS.sun : ICONS.moon;
+    toggle.setAttribute("aria-pressed", String(theme === "dark"));
+  }
+
+  function toggleTheme() {
+    theme = theme === "dark" ? "light" : "dark";
+    applyTheme();
+    saveTheme();
+  }
+
   function createLabelRow(label, index) {
     const row = document.createElement("div");
     row.className = "label-row";
@@ -96,7 +171,10 @@
 
     const removeButton = document.createElement("button");
     removeButton.type = "button";
-    removeButton.textContent = "Delete";
+    removeButton.className = "icon-button delete-button nf-icon";
+    removeButton.textContent = ICONS.trash;
+    removeButton.setAttribute("aria-label", "Удалить label");
+    removeButton.setAttribute("title", "Удалить label");
     removeButton.addEventListener("click", () => {
       labels.splice(index, 1);
       renderLabels();
@@ -134,8 +212,10 @@
   }
 
   async function init() {
-    labels = await readLabels();
+    [labels, theme] = await Promise.all([readLabels(), readTheme()]);
+    applyTheme();
     renderLabels();
+    document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
     document.getElementById("label-form").addEventListener("submit", addLabel);
   }
 

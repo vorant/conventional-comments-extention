@@ -8,12 +8,21 @@
   </head>
   <body>
     <main class="popup">
-      <h1>Labels</h1>
+      <header class="popup-header">
+        <div>
+          <h1>Labels</h1>
+          <p class="subtitle">Conventional comments</p>
+        </div>
+        <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Переключить тему" title="Переключить тему"></button>
+      </header>
       <form id="label-form" class="label-form">
         <div id="label-list" class="label-list" aria-label="Conventional Comments labels"></div>
         <div class="add-row">
           <input id="new-label" type="text" autocomplete="off" placeholder="new label" aria-label="Новый label">
-          <button type="submit">Add</button>
+          <button class="add-button" type="submit">
+            <span class="nf-icon" aria-hidden="true">&#xf067;</span>
+            <span>Add</span>
+          </button>
         </div>
       </form>
     </main>

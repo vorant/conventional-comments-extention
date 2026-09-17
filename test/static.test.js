@@ -55,10 +55,23 @@ test("popup and content script expose the same default Conventional Comments lab
 
 test("popup static assets are wired without external dependencies", () => {
   const popupHtml = readText("src/popup.html");
+  const popupCss = readText("src/popup.css");
+  const fontPath = path.join(rootDir, "src/fonts/symbols-nerd-font.woff2");
+  const fontLicensePath = path.join(rootDir, "src/fonts/NERD_FONTS_LICENSE");
 
   assert.match(popupHtml, /<link rel="stylesheet" href="popup\.css">/);
   assert.match(popupHtml, /<script src="popup\.js"><\/script>/);
+  assert.match(popupHtml, /id="theme-toggle"/);
   assert.doesNotMatch(popupHtml, /https?:\/\//);
+  assert.match(popupCss, /@font-face/);
+  assert.match(popupCss, /fonts\/symbols-nerd-font\.woff2/);
+  assert.match(popupCss, /body\[data-theme="dark"\]/);
+  assert.match(popupCss, /input:focus/);
+  assert.match(popupCss, /button:hover,\nbutton:focus/);
+  assert.match(popupCss, /delete-button/);
+  assert.doesNotMatch(popupCss, /https?:\/\//);
+  assert.ok(fs.existsSync(fontPath));
+  assert.ok(fs.existsSync(fontLicensePath));
 });
 
 test("README documents GitHub-only scope in Russian", () => {
@@ -66,6 +79,8 @@ test("README documents GitHub-only scope in Russian", () => {
 
   assert.match(readme, /GitHub Pull Requests/);
   assert.match(readme, /настройки labels/);
+  assert.match(readme, /светл[а-я]+ и темн[а-я]+ тем/);
+  assert.match(readme, /иконку корзины/);
   assert.match(readme, /В MVP не входят GitLab, Bitbucket/);
   assert.match(readme, /Локальная установка/);
 });

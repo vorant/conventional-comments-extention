@@ -34,6 +34,10 @@ class FakeElement {
     this.attributes.set(name, String(value));
   }
 
+  getAttribute(name) {
+    return this.attributes.get(name) || null;
+  }
+
   append(child) {
     child.parentElement = this;
     this.children.push(child);
@@ -62,6 +66,7 @@ class FakeDocument {
     this.body = new FakeElement("body");
 
     for (const [id, tagName] of [
+      ["theme-toggle", "button"],
       ["label-form", "form"],
       ["label-list", "div"],
       ["new-label", "input"]
@@ -87,11 +92,14 @@ function waitForAsyncWork() {
   });
 }
 
-async function createPopupContext(initialLabels) {
+async function createPopupContext(initialLabels, initialTheme) {
   const document = new FakeDocument();
   const storedItems = {};
   if (initialLabels !== undefined) {
     storedItems.ccLabels = initialLabels;
+  }
+  if (initialTheme !== undefined) {
+    storedItems.ccTheme = initialTheme;
   }
 
   const context = {
@@ -141,6 +149,41 @@ test("popup renders default labels before settings are changed", async () => {
   ]);
 });
 
+test("popup uses light theme by default", async () => {
+  const { document } = await createPopupContext();
+  const toggle = document.getElementById("theme-toggle");
+
+  assert.equal(document.body.getAttribute("data-theme"), "light");
+  assert.equal(toggle.getAttribute("aria-pressed"), "false");
+});
+
+test("popup applies a saved dark theme", async () => {
+  const { document } = await createPopupContext(["suggestion"], "dark");
+  const toggle = document.getElementById("theme-toggle");
+
+  assert.equal(document.body.getAttribute("data-theme"), "dark");
+  assert.equal(toggle.getAttribute("aria-pressed"), "true");
+});
+
+test("popup toggles and persists light and dark themes", async () => {
+  const { document, storedItems } = await createPopupContext(["suggestion"]);
+  const toggle = document.getElementById("theme-toggle");
+
+  toggle.click();
+  await waitForAsyncWork();
+
+  assert.equal(document.body.getAttribute("data-theme"), "dark");
+  assert.equal(storedItems.ccTheme, "dark");
+  assert.equal(toggle.getAttribute("aria-pressed"), "true");
+
+  toggle.click();
+  await waitForAsyncWork();
+
+  assert.equal(document.body.getAttribute("data-theme"), "light");
+  assert.equal(storedItems.ccTheme, "light");
+  assert.equal(toggle.getAttribute("aria-pressed"), "false");
+});
+
 test("popup persists edited labels", async () => {
   const { document, storedItems } = await createPopupContext(["suggestion"]);
   const [input] = renderedLabelInputs(document);
@@ -179,4 +222,16 @@ test("popup deletes labels including the last remaining label", async () => {
 
   assert.deepEqual(storedItems.ccLabels, []);
   assert.deepEqual(renderedLabelInputs(document), []);
+});
+
+test("popup delete control is a red icon-only trash button", async () => {
+  const { document } = await createPopupContext(["todo"]);
+  const deleteButton = document.getElementById("label-list").children[0].children[1];
+
+  assert.match(deleteButton.className, /delete-button/);
+  assert.match(deleteButton.className, /nf-icon/);
+  assert.equal(deleteButton.getAttribute("aria-label"), "Удалить label");
+  assert.equal(deleteButton.getAttribute("title"), "Удалить label");
+  assert.notEqual(deleteButton.textContent, "Delete");
+  assert.ok(deleteButton.textContent.length > 0);
 });
