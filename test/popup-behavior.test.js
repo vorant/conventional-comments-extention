@@ -17,6 +17,7 @@ class FakeElement {
     this.eventListeners = new Map();
     this.type = "";
     this.value = "";
+    this.draggable = false;
     this.className = "";
     this._textContent = "";
   }
@@ -32,6 +33,9 @@ class FakeElement {
 
   setAttribute(name, value) {
     this.attributes.set(name, String(value));
+    if (name === "draggable") {
+      this.draggable = value === "true";
+    }
   }
 
   getAttribute(name) {
@@ -47,9 +51,14 @@ class FakeElement {
     this.eventListeners.set(type, listener);
   }
 
+  removeAttribute(name) {
+    this.attributes.delete(name);
+  }
+
   dispatchEvent(event) {
     const listener = this.eventListeners.get(event.type);
     if (listener) {
+      event.currentTarget = this;
       listener(event);
     }
   }
@@ -95,6 +104,7 @@ function waitForAsyncWork() {
 async function createPopupContext(initialLabels, initialTheme) {
   const document = new FakeDocument();
   const storedItems = {};
+  let setCallCount = 0;
   if (initialLabels !== undefined) {
     storedItems.ccLabels = initialLabels;
   }
@@ -111,6 +121,7 @@ async function createPopupContext(initialLabels, initialTheme) {
             callback({ [key]: storedItems[key] });
           },
           set(items, callback) {
+            setCallCount += 1;
             Object.assign(storedItems, items);
             if (callback) {
               callback();
@@ -124,13 +135,33 @@ async function createPopupContext(initialLabels, initialTheme) {
   vm.runInNewContext(popupScript, context);
   await waitForAsyncWork();
 
-  return { document, storedItems };
+  return { document, getSetCallCount: () => setCallCount, storedItems };
 }
 
 function renderedLabelInputs(document) {
   return document
     .getElementById("label-list")
-    .children.map((row) => row.children[0]);
+    .children.map((row) => row.children[1]);
+}
+
+function createDragEvent(type) {
+  const data = new Map();
+  return {
+    type,
+    dataTransfer: {
+      dropEffect: "",
+      effectAllowed: "",
+      getData(key) {
+        return data.get(key) || "";
+      },
+      setData(key, value) {
+        data.set(key, String(value));
+      }
+    },
+    preventDefault() {
+      this.defaultPrevented = true;
+    }
+  };
 }
 
 test("popup renders default labels before settings are changed", async () => {
@@ -195,6 +226,134 @@ test("popup persists edited labels", async () => {
   assert.deepEqual(storedItems.ccLabels, ["proposal"]);
 });
 
+test("popup label rows include a visible drag handle", async () => {
+  const { document } = await createPopupContext(["suggestion"]);
+  const row = document.getElementById("label-list").children[0];
+  const handle = row.children[0];
+
+  assert.equal(row.draggable, true);
+  assert.equal(row.getAttribute("draggable"), "true");
+  assert.match(handle.className, /drag-handle/);
+  assert.equal(handle.getAttribute("aria-hidden"), "true");
+  assert.match(handle.children[0].className, /drag-handle-icon-light/);
+  assert.match(handle.children[0].className, /nf-icon/);
+  assert.match(handle.children[1].className, /drag-handle-icon-dark/);
+  assert.match(handle.children[1].className, /nf-icon/);
+  assert.equal(handle.children[0].textContent, handle.children[1].textContent);
+});
+
+test("popup previews reorder during dragover and saves on drop", async () => {
+  const { document, storedItems } = await createPopupContext(["suggestion", "question", "issue"]);
+  const list = document.getElementById("label-list");
+
+  list.children[1].dispatchEvent(createDragEvent("dragstart"));
+  list.children[0].dispatchEvent(createDragEvent("dragover"));
+
+  assert.deepEqual(renderedLabelInputs(document).map((input) => input.value), ["question", "suggestion", "issue"]);
+  assert.deepEqual(storedItems.ccLabels, ["suggestion", "question", "issue"]);
+
+  document.getElementById("label-list").children[0].dispatchEvent(createDragEvent("drop"));
+  await waitForAsyncWork();
+
+  assert.deepEqual(renderedLabelInputs(document).map((input) => input.value), ["question", "suggestion", "issue"]);
+  assert.deepEqual(storedItems.ccLabels, ["question", "suggestion", "issue"]);
+});
+
+test("popup marks only the latest changed row range during reorder preview", async () => {
+  const { document } = await createPopupContext([
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight"
+  ]);
+  const list = document.getElementById("label-list");
+
+  list.children[1].dispatchEvent(createDragEvent("dragstart"));
+  list.children[3].dispatchEvent(createDragEvent("dragover"));
+
+  assert.deepEqual(renderedLabelInputs(document).map((input) => input.value), [
+    "one",
+    "three",
+    "four",
+    "two",
+    "five",
+    "six",
+    "seven",
+    "eight"
+  ]);
+  assert.deepEqual(
+    document
+      .getElementById("label-list")
+      .children.map((row) => row.getAttribute("data-drag-preview") === "true"),
+    [false, true, true, true, false, false, false, false]
+  );
+  assert.deepEqual(
+    document
+      .getElementById("label-list")
+      .children.map((row) => row.getAttribute("data-dragging") === "true"),
+    [false, false, false, true, false, false, false, false]
+  );
+
+  document.getElementById("label-list").children[6].dispatchEvent(createDragEvent("dragover"));
+
+  assert.deepEqual(renderedLabelInputs(document).map((input) => input.value), [
+    "one",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "two",
+    "eight"
+  ]);
+  assert.deepEqual(
+    document
+      .getElementById("label-list")
+      .children.map((row) => row.getAttribute("data-drag-preview") === "true"),
+    [false, false, false, true, true, true, true, false]
+  );
+  assert.deepEqual(
+    document
+      .getElementById("label-list")
+      .children.map((row) => row.getAttribute("data-dragging") === "true"),
+    [false, false, false, false, false, false, true, false]
+  );
+});
+
+test("popup no-op drop keeps label order without saving", async () => {
+  const { document, getSetCallCount, storedItems } = await createPopupContext(["suggestion", "question"]);
+  const list = document.getElementById("label-list");
+  const callsBeforeDrag = getSetCallCount();
+
+  list.children[0].dispatchEvent(createDragEvent("dragstart"));
+  list.children[0].dispatchEvent(createDragEvent("drop"));
+  await waitForAsyncWork();
+
+  assert.deepEqual(renderedLabelInputs(document).map((input) => input.value), ["suggestion", "question"]);
+  assert.deepEqual(storedItems.ccLabels, ["suggestion", "question"]);
+  assert.equal(getSetCallCount(), callsBeforeDrag);
+});
+
+test("popup restores order when drag is cancelled after preview", async () => {
+  const { document, storedItems } = await createPopupContext(["suggestion", "question", "issue"]);
+  const list = document.getElementById("label-list");
+
+  list.children[0].dispatchEvent(createDragEvent("dragstart"));
+  list.children[2].dispatchEvent(createDragEvent("dragover"));
+
+  assert.deepEqual(renderedLabelInputs(document).map((input) => input.value), ["question", "issue", "suggestion"]);
+
+  document.getElementById("label-list").children[2].dispatchEvent(createDragEvent("dragend"));
+  await waitForAsyncWork();
+
+  assert.deepEqual(renderedLabelInputs(document).map((input) => input.value), ["suggestion", "question", "issue"]);
+  assert.deepEqual(storedItems.ccLabels, ["suggestion", "question", "issue"]);
+});
+
 test("popup adds only non-empty labels", async () => {
   const { document, storedItems } = await createPopupContext(["question"]);
   const form = document.getElementById("label-form");
@@ -215,7 +374,7 @@ test("popup adds only non-empty labels", async () => {
 
 test("popup deletes labels including the last remaining label", async () => {
   const { document, storedItems } = await createPopupContext(["todo"]);
-  const deleteButton = document.getElementById("label-list").children[0].children[1];
+  const deleteButton = document.getElementById("label-list").children[0].children[2];
 
   deleteButton.click();
   await waitForAsyncWork();
@@ -226,7 +385,7 @@ test("popup deletes labels including the last remaining label", async () => {
 
 test("popup delete control is a red icon-only trash button", async () => {
   const { document } = await createPopupContext(["todo"]);
-  const deleteButton = document.getElementById("label-list").children[0].children[1];
+  const deleteButton = document.getElementById("label-list").children[0].children[2];
 
   assert.match(deleteButton.className, /delete-button/);
   assert.match(deleteButton.className, /nf-icon/);

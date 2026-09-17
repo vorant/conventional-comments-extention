@@ -17,13 +17,28 @@ function extractDefaultLabels(script) {
 
 test("manifest declares GitHub Pull Request content script and popup settings", () => {
   const manifest = JSON.parse(readText("manifest.json"));
+  const expectedIcons = {
+    "16": "src/icons/icon-16.png",
+    "32": "src/icons/icon-32.png",
+    "48": "src/icons/icon-48.png",
+    "128": "src/icons/icon-128.png"
+  };
 
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["storage"]);
-  assert.deepEqual(manifest.action, { default_popup: "src/popup.html" });
+  assert.deepEqual(manifest.icons, expectedIcons);
+  assert.deepEqual(manifest.action, {
+    default_popup: "src/popup.html",
+    default_icon: expectedIcons
+  });
   assert.deepEqual(manifest.content_scripts[0].matches, ["https://github.com/*/*/pull/*"]);
   assert.deepEqual(manifest.content_scripts[0].js, ["src/content-script.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["src/content-style.css"]);
+
+  for (const iconPath of Object.values(expectedIcons)) {
+    assert.ok(fs.existsSync(path.join(rootDir, iconPath)));
+    assert.doesNotMatch(iconPath, /https?:\/\//);
+  }
 });
 
 test("content script keeps MVP limited to github.com pull requests", () => {
@@ -69,6 +84,10 @@ test("popup static assets are wired without external dependencies", () => {
   assert.match(popupCss, /input:focus/);
   assert.match(popupCss, /button:hover,\nbutton:focus/);
   assert.match(popupCss, /delete-button/);
+  assert.match(popupCss, /drag-handle/);
+  assert.match(popupCss, /drag-handle-icon-light/);
+  assert.match(popupCss, /drag-handle-icon-dark/);
+  assert.match(popupCss, /@keyframes cc-row-shift/);
   assert.doesNotMatch(popupCss, /https?:\/\//);
   assert.ok(fs.existsSync(fontPath));
   assert.ok(fs.existsSync(fontLicensePath));
@@ -79,6 +98,8 @@ test("README documents GitHub-only scope in Russian", () => {
 
   assert.match(readme, /GitHub Pull Requests/);
   assert.match(readme, /настройки labels/);
+  assert.match(readme, /перетаскив/);
+  assert.match(readme, /иконк[а-я]+ расширения/);
   assert.match(readme, /светл[а-я]+ и темн[а-я]+ тем/);
   assert.match(readme, /иконку корзины/);
   assert.match(readme, /В MVP не входят GitLab, Bitbucket/);

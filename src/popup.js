@@ -17,6 +17,7 @@
   const THEME_STORAGE_KEY = "ccTheme";
   const THEMES = ["light", "dark"];
   const ICONS = {
+    grip: String.fromCodePoint(0xf0c9),
     moon: String.fromCodePoint(0xf186),
     sun: String.fromCodePoint(0xf185),
     trash: String.fromCodePoint(0xf01b4)
@@ -24,6 +25,7 @@
 
   let labels = [];
   let theme = "light";
+  let dragState = null;
 
   function getStorageArea() {
     return globalThis.chrome && chrome.storage && chrome.storage.sync
@@ -156,9 +158,139 @@
     saveTheme();
   }
 
+  function getReorderedLabels(sourceLabels, fromIndex, toIndex) {
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= sourceLabels.length ||
+      toIndex >= sourceLabels.length
+    ) {
+      return sourceLabels.slice();
+    }
+
+    const nextLabels = sourceLabels.slice();
+    const [movedLabel] = nextLabels.splice(fromIndex, 1);
+    nextLabels.splice(toIndex, 0, movedLabel);
+    return nextLabels;
+  }
+
+  function isDragPreviewIndex(index) {
+    if (
+      !dragState ||
+      dragState.animationFirstIndex === null ||
+      dragState.animationLastIndex === null
+    ) {
+      return false;
+    }
+
+    return index >= dragState.animationFirstIndex && index <= dragState.animationLastIndex;
+  }
+
+  function createDragHandle() {
+    const handle = document.createElement("span");
+    handle.className = "drag-handle";
+    handle.setAttribute("aria-hidden", "true");
+    handle.setAttribute("title", "Перетащить label");
+
+    const lightIcon = document.createElement("span");
+    lightIcon.className = "drag-handle-icon drag-handle-icon-light nf-icon";
+    lightIcon.textContent = ICONS.grip;
+
+    const darkIcon = document.createElement("span");
+    darkIcon.className = "drag-handle-icon drag-handle-icon-dark nf-icon";
+    darkIcon.textContent = ICONS.grip;
+
+    handle.append(lightIcon);
+    handle.append(darkIcon);
+    return handle;
+  }
+
+  function onLabelDragStart(event, index) {
+    dragState = {
+      animationFirstIndex: null,
+      animationLastIndex: null,
+      dropped: false,
+      originalIndex: index,
+      originalLabels: labels.slice(),
+      previewIndex: index
+    };
+
+    event.currentTarget.setAttribute("data-dragging", "true");
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", String(index));
+    }
+  }
+
+  function previewLabelDrop(dropIndex) {
+    if (!dragState || dropIndex === dragState.previewIndex) {
+      return;
+    }
+
+    const previousPreviewIndex = dragState.previewIndex;
+    labels = getReorderedLabels(dragState.originalLabels, dragState.originalIndex, dropIndex);
+    dragState.animationFirstIndex = Math.min(previousPreviewIndex, dropIndex);
+    dragState.animationLastIndex = Math.max(previousPreviewIndex, dropIndex);
+    dragState.previewIndex = dropIndex;
+    renderLabels();
+  }
+
+  function onLabelDragOver(event, dropIndex) {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+
+    previewLabelDrop(dropIndex);
+  }
+
+  function onLabelDragEnd(event) {
+    event.currentTarget.removeAttribute("data-dragging");
+    if (!dragState || dragState.dropped) {
+      return;
+    }
+
+    labels = dragState.originalLabels.slice();
+    dragState = null;
+    renderLabels();
+  }
+
+  async function onLabelDrop(event, dropIndex) {
+    event.preventDefault();
+    if (!dragState) {
+      return;
+    }
+
+    previewLabelDrop(dropIndex);
+    dragState.dropped = true;
+    const shouldSave = dragState.originalIndex !== dragState.previewIndex;
+    dragState = null;
+    renderLabels();
+
+    if (shouldSave) {
+      await saveLabels();
+    }
+  }
+
   function createLabelRow(label, index) {
     const row = document.createElement("div");
     row.className = "label-row";
+    row.draggable = true;
+    row.setAttribute("draggable", "true");
+    row.setAttribute("data-label-index", String(index));
+    if (dragState) {
+      if (isDragPreviewIndex(index)) {
+        row.setAttribute("data-drag-preview", "true");
+      }
+      if (index === dragState.previewIndex) {
+        row.setAttribute("data-dragging", "true");
+      }
+    }
+    row.addEventListener("dragstart", (event) => onLabelDragStart(event, index));
+    row.addEventListener("dragover", (event) => onLabelDragOver(event, index));
+    row.addEventListener("drop", (event) => onLabelDrop(event, index));
+    row.addEventListener("dragend", onLabelDragEnd);
 
     const input = document.createElement("input");
     input.type = "text";
@@ -181,6 +313,7 @@
       saveLabels();
     });
 
+    row.append(createDragHandle());
     row.append(input);
     row.append(removeButton);
     return row;

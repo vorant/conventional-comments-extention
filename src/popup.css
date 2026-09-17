@@ -20,6 +20,8 @@
   --cc-popup-danger: #cf222e;
   --cc-popup-danger-bg: #ffebe9;
   --cc-popup-danger-hover: #ffdad7;
+  --cc-popup-drag-icon: #57606a;
+  --cc-popup-drag-icon-active: #0969da;
 }
 
 body[data-theme="dark"] {
@@ -34,6 +36,8 @@ body[data-theme="dark"] {
   --cc-popup-danger: #ff7b72;
   --cc-popup-danger-bg: rgba(248, 81, 73, 0.12);
   --cc-popup-danger-hover: rgba(248, 81, 73, 0.2);
+  --cc-popup-drag-icon: #8b949e;
+  --cc-popup-drag-icon-active: #58a6ff;
 }
 
 body {
@@ -81,15 +85,76 @@ h1 {
 .label-row,
 .add-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 6px;
   align-items: center;
+}
+
+.add-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.label-row {
+  border-radius: 6px;
+  transition: background-color 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.label-row[data-dragging="true"] {
+  opacity: 0.55;
+}
+
+.label-row[data-drag-preview="true"] {
+  animation: cc-row-shift 140ms ease;
+}
+
+.drag-handle {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 30px;
+  color: var(--cc-popup-drag-icon);
+  cursor: grab;
+  user-select: none;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle-icon {
+  grid-area: 1 / 1;
+}
+
+.drag-handle-icon-dark {
+  display: none;
+}
+
+body[data-theme="dark"] .drag-handle-icon-light {
+  display: none;
+}
+
+body[data-theme="dark"] .drag-handle-icon-dark {
+  display: inline;
+}
+
+.label-row[data-dragging="true"] .drag-handle {
+  color: var(--cc-popup-drag-icon-active);
 }
 
 .nf-icon {
   font-family: "CC Nerd Symbols", "Symbols Nerd Font", monospace;
   font-size: 14px;
   line-height: 1;
+}
+
+@keyframes cc-row-shift {
+  from {
+    transform: translateY(4px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 input {
