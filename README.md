@@ -8,10 +8,12 @@ Chrome-расширение помогает писать комментарии
 
 - страницы `https://github.com/*/*/pull/*`;
 - стандартные комментарии к строкам кода в Pull Request;
-- labels `praise`, `nitpick`, `suggestion`, `issue`, `todo`, `question`, `thought`, `chore`, `note`;
+- настройки labels в popup расширения;
+- дефолтные labels `praise`, `nitpick`, `suggestion`, `issue`, `todo`, `question`, `thought`, `chore`, `note`;
+- редактирование, добавление и удаление labels;
 - вставка выбранного label в начало поля комментария.
 
-В MVP не входят GitLab, Bitbucket, настройки, popup, AI-подсказки, decorations вроде `(non-blocking)` и публикация в Chrome Web Store.
+В MVP не входят GitLab, Bitbucket, AI-подсказки, decorations вроде `(non-blocking)` и публикация в Chrome Web Store.
 
 ## Локальная установка
 
@@ -24,11 +26,23 @@ Chrome-расширение помогает писать комментарии
 
 Над стандартным полем комментария должна появиться панель Conventional Comments labels.
 
+## Настройки labels
+
+Нажмите иконку расширения в Chrome, чтобы открыть popup настроек. В popup можно:
+
+- изменить текст любого label, например добавить emoji или заменить `suggestion` на другое слово;
+- добавить новый непустой label;
+- удалить лишние labels, включая все элементы списка.
+
+Расширение сохраняет список labels в настройках браузера. Если список еще не меняли, используется дефолтный набор Conventional Comments.
+
 ## Проверка вручную
 
 - На GitHub Pull Request панель появляется только после открытия поля комментария к строке.
 - Кнопка `suggestion:` вставляет `suggestion: ` в пустое поле.
 - Кнопка `question:` вставляет `question: ` перед уже введенным текстом.
+- Измененный в popup label появляется в новых полях комментариев и вставляется как `<label>: `.
+- Если в popup удалить все labels, пустая панель у поля комментария не появляется.
 - Отправка и отмена комментария продолжают работать стандартными кнопками GitHub.
 - На GitLab и Bitbucket расширение не добавляет интерфейс.
 

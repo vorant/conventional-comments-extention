@@ -134,7 +134,11 @@ class FakeDocument extends FakeElement {
   }
 }
 
-function createContext({ hostname = "github.com", pathname = "/owner/repo/pull/1/files" } = {}) {
+function createContext({
+  hostname = "github.com",
+  pathname = "/owner/repo/pull/1/files",
+  storedLabels
+} = {}) {
   const document = new FakeDocument();
   const observers = [];
 
@@ -166,8 +170,26 @@ function createContext({ hostname = "github.com", pathname = "/owner/repo/pull/1
     MutationObserver: FakeMutationObserver
   };
 
+  if (storedLabels !== undefined) {
+    context.chrome = {
+      storage: {
+        sync: {
+          get(key, callback) {
+            callback({ [key]: storedLabels });
+          }
+        }
+      }
+    };
+  }
+
   context.window.document = document;
   return { context, document, observers };
+}
+
+function waitForAsyncWork() {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
 }
 
 function createGitHubCommentForm(document) {
@@ -204,12 +226,13 @@ function createModernGitHubCommentForm(document) {
   return { editor, inputWrapper, textAreaWrapper, textarea };
 }
 
-test("adds label panel to an existing GitHub pull request comment textarea", () => {
+test("adds label panel to an existing GitHub pull request comment textarea", async () => {
   const { context, document } = createContext();
   const { form, textarea } = createGitHubCommentForm(document);
   document.body.append(form);
 
   vm.runInNewContext(contentScript, context);
+  await waitForAsyncWork();
 
   const panel = form.querySelector(".cc-label-panel");
   assert.ok(panel);
@@ -223,12 +246,13 @@ test("adds label panel to an existing GitHub pull request comment textarea", () 
   assert.ok(textarea.focused);
 });
 
-test("places the panel above the modern GitHub textarea wrapper", () => {
+test("places the panel above the modern GitHub textarea wrapper", async () => {
   const { context, document } = createContext();
   const { editor, inputWrapper, textAreaWrapper, textarea } = createModernGitHubCommentForm(document);
   document.body.append(editor);
 
   vm.runInNewContext(contentScript, context);
+  await waitForAsyncWork();
 
   const panel = editor.querySelector(".cc-label-panel");
   assert.ok(panel);
@@ -237,13 +261,14 @@ test("places the panel above the modern GitHub textarea wrapper", () => {
   assert.equal(textAreaWrapper.children[0], textarea);
 });
 
-test("inserts selected label before existing text", () => {
+test("inserts selected label before existing text", async () => {
   const { context, document } = createContext();
   const { form, textarea } = createGitHubCommentForm(document);
   textarea.value = "Нужно уточнить поведение.";
   document.body.append(form);
 
   vm.runInNewContext(contentScript, context);
+  await waitForAsyncWork();
 
   const panel = form.querySelector(".cc-label-panel");
   const questionButton = panel.children.find((button) => button.textContent === "question:");
@@ -265,7 +290,7 @@ test("does not add UI outside github.com pull requests", () => {
   assert.equal(form.querySelector(".cc-label-panel"), null);
 });
 
-test("handles dynamically added comment forms once", () => {
+test("handles dynamically added comment forms once", async () => {
   const { context, document, observers } = createContext();
   vm.runInNewContext(contentScript, context);
 
@@ -274,7 +299,42 @@ test("handles dynamically added comment forms once", () => {
 
   observers[0].callback([{ addedNodes: [form] }]);
   observers[0].callback([{ addedNodes: [form] }]);
+  await waitForAsyncWork();
 
   assert.equal(form.querySelectorAll(".cc-label-panel").length, 1);
   assert.equal(textarea.getAttribute("data-cc-label-panel"), "true");
+});
+
+test("renders saved custom labels and inserts the selected value", async () => {
+  const { context, document } = createContext({ storedLabels: ["proposal", "idea💡"] });
+  const { form, textarea } = createGitHubCommentForm(document);
+  document.body.append(form);
+
+  vm.runInNewContext(contentScript, context);
+  await waitForAsyncWork();
+
+  const panel = form.querySelector(".cc-label-panel");
+  assert.equal(panel.children.length, 2);
+
+  const ideaButton = panel.children.find((button) => button.textContent === "idea💡:");
+  ideaButton.click();
+
+  assert.equal(textarea.value, "idea💡: ");
+});
+
+test("does not render an empty panel for an intentionally empty label list", async () => {
+  const { context, document, observers } = createContext({ storedLabels: [] });
+  const { form, textarea } = createGitHubCommentForm(document);
+  document.body.append(form);
+
+  vm.runInNewContext(contentScript, context);
+  await waitForAsyncWork();
+
+  assert.equal(form.querySelector(".cc-label-panel"), null);
+  assert.equal(textarea.getAttribute("data-cc-label-panel"), "true");
+
+  observers[0].callback([{ addedNodes: [form] }]);
+  await waitForAsyncWork();
+
+  assert.equal(form.querySelectorAll(".cc-label-panel").length, 0);
 });

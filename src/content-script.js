@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const LABELS = [
+  const DEFAULT_LABELS = [
     "praise",
     "nitpick",
     "suggestion",
@@ -15,6 +15,53 @@
 
   const PANEL_CLASS = "cc-label-panel";
   const PROCESSED_ATTRIBUTE = "data-cc-label-panel";
+  const LABEL_STORAGE_KEY = "ccLabels";
+
+  function getStorageArea() {
+    return globalThis.chrome && chrome.storage && chrome.storage.sync
+      ? chrome.storage.sync
+      : null;
+  }
+
+  function normalizeLabels(value, fallback) {
+    if (!Array.isArray(value)) {
+      return fallback.slice();
+    }
+
+    return value
+      .filter((label) => typeof label === "string")
+      .map((label) => label.trim())
+      .filter(Boolean);
+  }
+
+  function readLabels() {
+    const storage = getStorageArea();
+    if (!storage || typeof storage.get !== "function") {
+      return Promise.resolve(DEFAULT_LABELS.slice());
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const settle = (value) => {
+        if (!settled) {
+          settled = true;
+          resolve(normalizeLabels(value, DEFAULT_LABELS));
+        }
+      };
+
+      try {
+        const result = storage.get(LABEL_STORAGE_KEY, (items) => {
+          settle(items && items[LABEL_STORAGE_KEY]);
+        });
+
+        if (result && typeof result.then === "function") {
+          result.then((items) => settle(items && items[LABEL_STORAGE_KEY]), () => settle(undefined));
+        }
+      } catch (error) {
+        settle(undefined);
+      }
+    });
+  }
 
   function isGitHubPullRequestPage() {
     return (
@@ -71,12 +118,12 @@
     textarea.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: prefix }));
   }
 
-  function createPanel(textarea) {
+  function createPanel(textarea, labels) {
     const panel = document.createElement("div");
     panel.className = PANEL_CLASS;
     panel.setAttribute("aria-label", "Conventional Comments labels");
 
-    for (const label of LABELS) {
+    for (const label of labels) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "cc-label-button";
@@ -88,7 +135,7 @@
     return panel;
   }
 
-  function attachPanel(textarea) {
+  async function attachPanel(textarea) {
     if (!isCommentTextarea(textarea) || textarea.hasAttribute(PROCESSED_ATTRIBUTE)) {
       return;
     }
@@ -105,7 +152,12 @@
     }
 
     textarea.setAttribute(PROCESSED_ATTRIBUTE, "true");
-    insertionParent.insertBefore(createPanel(textarea), insertionTarget);
+    const labels = await readLabels();
+    if (labels.length === 0) {
+      return;
+    }
+
+    insertionParent.insertBefore(createPanel(textarea, labels), insertionTarget);
   }
 
   function scanForCommentFields(root = document) {

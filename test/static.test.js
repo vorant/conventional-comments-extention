@@ -9,11 +9,18 @@ function readText(relativePath) {
   return fs.readFileSync(path.join(rootDir, relativePath), "utf8");
 }
 
-test("manifest declares a minimal GitHub Pull Request content script", () => {
+function extractDefaultLabels(script) {
+  const match = script.match(/const DEFAULT_LABELS = \[([\s\S]*?)\];/);
+  assert.ok(match);
+  return Array.from(match[1].matchAll(/"([^"]+)"/g), (labelMatch) => labelMatch[1]);
+}
+
+test("manifest declares GitHub Pull Request content script and popup settings", () => {
   const manifest = JSON.parse(readText("manifest.json"));
 
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.permissions, undefined);
+  assert.deepEqual(manifest.permissions, ["storage"]);
+  assert.deepEqual(manifest.action, { default_popup: "src/popup.html" });
   assert.deepEqual(manifest.content_scripts[0].matches, ["https://github.com/*/*/pull/*"]);
   assert.deepEqual(manifest.content_scripts[0].js, ["src/content-script.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["src/content-style.css"]);
@@ -27,8 +34,9 @@ test("content script keeps MVP limited to github.com pull requests", () => {
   assert.doesNotMatch(script, /gitlab|bitbucket/i);
 });
 
-test("content script exposes the MVP Conventional Comments labels", () => {
-  const script = readText("src/content-script.js");
+test("popup and content script expose the same default Conventional Comments labels", () => {
+  const contentScript = readText("src/content-script.js");
+  const popupScript = readText("src/popup.js");
   const expectedLabels = [
     "praise",
     "nitpick",
@@ -41,15 +49,23 @@ test("content script exposes the MVP Conventional Comments labels", () => {
     "note"
   ];
 
-  for (const label of expectedLabels) {
-    assert.match(script, new RegExp(`"${label}"`));
-  }
+  assert.deepEqual(extractDefaultLabels(contentScript), expectedLabels);
+  assert.deepEqual(extractDefaultLabels(popupScript), expectedLabels);
+});
+
+test("popup static assets are wired without external dependencies", () => {
+  const popupHtml = readText("src/popup.html");
+
+  assert.match(popupHtml, /<link rel="stylesheet" href="popup\.css">/);
+  assert.match(popupHtml, /<script src="popup\.js"><\/script>/);
+  assert.doesNotMatch(popupHtml, /https?:\/\//);
 });
 
 test("README documents GitHub-only scope in Russian", () => {
   const readme = readText("README.md");
 
   assert.match(readme, /GitHub Pull Requests/);
+  assert.match(readme, /настройки labels/);
   assert.match(readme, /В MVP не входят GitLab, Bitbucket/);
   assert.match(readme, /Локальная установка/);
 });
