@@ -1,340 +1,100 @@
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const test = require("node:test");
-const vm = require("node:vm");
-
-const rootDir = path.resolve(__dirname, "..");
-const contentScript = fs.readFileSync(path.join(rootDir, "src/content-script.js"), "utf8");
-
-class FakeElement {
-  constructor(tagName) {
-    this.tagName = tagName.toLowerCase();
-    this.attributes = new Map();
-    this.children = [];
-    this.parentElement = null;
-    this.className = "";
-    this.textContent = "";
-    this.eventListeners = new Map();
-  }
-
-  setAttribute(name, value) {
-    this.attributes.set(name, String(value));
-  }
-
-  getAttribute(name) {
-    return this.attributes.get(name) || null;
-  }
-
-  hasAttribute(name) {
-    return this.attributes.has(name);
-  }
-
-  append(child) {
-    child.parentElement = this;
-    this.children.push(child);
-  }
-
-  insertBefore(child, reference) {
-    const index = this.children.indexOf(reference);
-    assert.notEqual(index, -1);
-    child.parentElement = this;
-    this.children.splice(index, 0, child);
-  }
-
-  addEventListener(type, listener) {
-    this.eventListeners.set(type, listener);
-  }
-
-  dispatchEvent(event) {
-    this.lastEvent = event;
-    return true;
-  }
-
-  click() {
-    const listener = this.eventListeners.get("click");
-    if (listener) {
-      listener();
-    }
-  }
-
-  focus() {
-    this.focused = true;
-  }
-
-  matches(selector) {
-    if (selector.startsWith(".")) {
-      return this.className.split(/\s+/).includes(selector.slice(1));
-    }
-
-    const classContains = selector.match(/^\[class\*="([^"]+)"\]$/);
-    if (classContains) {
-      return this.className.includes(classContains[1]);
-    }
-
-    return this.tagName === selector.toLowerCase();
-  }
-
-  closest(selector) {
-    let node = this;
-    while (node) {
-      if (node.matches(selector)) {
-        return node;
-      }
-      node = node.parentElement;
-    }
-    return null;
-  }
-
-  querySelectorAll(selector) {
-    const found = [];
-
-    function walk(node) {
-      for (const child of node.children) {
-        if (child.matches(selector)) {
-          found.push(child);
-        }
-        walk(child);
-      }
-    }
-
-    walk(this);
-    return found;
-  }
-
-  querySelector(selector) {
-    return this.querySelectorAll(selector)[0] || null;
-  }
-}
-
-class FakeTextarea extends FakeElement {
-  constructor() {
-    super("textarea");
-    this.value = "";
-    this.selectionStart = 0;
-    this.selectionEnd = 0;
-  }
-}
-
-class FakeDocument extends FakeElement {
-  constructor() {
-    super("document");
-    this.body = new FakeElement("body");
-    this.readyState = "complete";
-    this.children = [this.body];
-    this.body.parentElement = this;
-  }
-
-  createElement(tagName) {
-    if (tagName.toLowerCase() === "textarea") {
-      return new FakeTextarea();
-    }
-
-    return new FakeElement(tagName);
-  }
-}
-
-function createContext({
-  hostname = "github.com",
-  pathname = "/owner/repo/pull/1/files",
-  storedLabels
-} = {}) {
-  const document = new FakeDocument();
-  const observers = [];
-
-  class FakeMutationObserver {
-    constructor(callback) {
-      this.callback = callback;
-      observers.push(this);
-    }
-
-    observe() {}
-  }
-
-  const context = {
-    document,
-    window: {
-      location: {
-        hostname,
-        pathname
-      }
-    },
-    HTMLElement: FakeElement,
-    HTMLTextAreaElement: FakeTextarea,
-    InputEvent: class FakeInputEvent {
-      constructor(type, init) {
-        this.type = type;
-        Object.assign(this, init);
-      }
-    },
-    MutationObserver: FakeMutationObserver
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+const vm = require('node:vm');
+const { Document, parse } = require('./helpers/dom');
+const P = require('../src/site-profiles');
+const A = require('../src/editor-adapters');
+const E = require('../src/panel-engine');
+const source = fs.readFileSync(path.join(__dirname,'../src/content-script.js'),'utf8');
+const flush = async () => { for(let i=0;i<10;i++) await Promise.resolve(); };
+function create(options={}) {
+  const doc = new Document();
+  parse(doc, options.html || '<form class="js-previewable-comment-form"><text-expander><textarea name="comment[body]"></textarea></text-expander></form>');
+  let profiles = options.profiles || P.all(), labels = options.labels, now = 0, id = 0;
+  const timers = new Map(), intervals = [], observers = [], runtimeListeners = [], storageListeners = [], sent = [];
+  const location = {href:options.href || 'https://github.com/a/b/pull/12'};
+  const context = { document:doc, location, CCProfiles:P, CCEditors:A, CCPanel:E,
+    window:{addEventListener(){}}, Date:{now:()=>now},
+    setTimeout(fn,ms){timers.set(++id,{fn,time:now+ms});return id;},clearTimeout(id){timers.delete(id);},setInterval(fn){intervals.push(fn);},
+    MutationObserver:class { constructor(fn){observers.push(fn);} observe(){} },
+    chrome:{runtime:{onMessage:{addListener(fn){runtimeListeners.push(fn);}},async sendMessage(message){sent.push(message);return message.type==='cc-config'?{ok:true,profiles}: {ok:true};}},
+      storage:{sync:{async get(){return {ccLabels:labels};}},onChanged:{addListener(fn){storageListeners.push(fn);}}}}
   };
-
-  if (storedLabels !== undefined) {
-    context.chrome = {
-      storage: {
-        sync: {
-          get(key, callback) {
-            callback({ [key]: storedLabels });
-          }
-        }
-      }
-    };
-  }
-
-  context.window.document = document;
-  return { context, document, observers };
+  const ctx=vm.createContext(context);vm.runInContext(source,ctx);
+  async function tick(ms=31){now+=ms;for(let n=0;n<10;n++){const due=[...timers].filter(([,t])=>t.time<=now);if(!due.length)break;for(const [key,t] of due){timers.delete(key);t.fn();await flush();}}await flush();}
+  function mutate(){observers[0]([{target:doc.body}]);}
+  async function message(message){let reply;const pending=runtimeListeners[0](message,{},r=>{reply=r;});if(pending)await flush();return reply;}
+  return {doc,sent,flush,tick,mutate,message,context:ctx,
+    async changeLabels(value){labels=value;storageListeners[0]({ccLabels:{}},'sync');await flush();},
+    async changeProfiles(value){profiles=value;await message({type:'cc-reload'});},
+    async navigate(url){location.href=url;intervals.forEach(fn=>fn());await tick();}
+  };
 }
-
-function waitForAsyncWork() {
-  return new Promise((resolve) => {
-    setImmediate(resolve);
-  });
-}
-
-function createGitHubCommentForm(document) {
-  const form = document.createElement("form");
-  form.className = "js-previewable-comment-form";
-
-  const expander = document.createElement("text-expander");
-  const textarea = document.createElement("textarea");
-  textarea.setAttribute("name", "comment[body]");
-
-  expander.append(textarea);
-  form.append(expander);
-  return { form, textarea };
-}
-
-function createModernGitHubCommentForm(document) {
-  const editor = document.createElement("div");
-  editor.className = "MarkdownEditor-module__container__H4O8J";
-
-  const inputWrapper = document.createElement("div");
-  inputWrapper.className = "MarkdownInput-module__inputWrapper__vOI3M";
-
-  const textAreaWrapper = document.createElement("span");
-  textAreaWrapper.className = "MarkdownInput-module__textArea__BRDa8 prc-components-TextInputBaseWrapper-wY-n0";
-
-  const textarea = document.createElement("textarea");
-  textarea.setAttribute("aria-label", "Markdown value");
-  textarea.setAttribute("placeholder", "Leave a comment");
-
-  textAreaWrapper.append(textarea);
-  inputWrapper.append(textAreaWrapper);
-  editor.append(inputWrapper);
-
-  return { editor, inputWrapper, textAreaWrapper, textarea };
-}
-
-test("adds label panel to an existing GitHub pull request comment textarea", async () => {
-  const { context, document } = createContext();
-  const { form, textarea } = createGitHubCommentForm(document);
-  document.body.append(form);
-
-  vm.runInNewContext(contentScript, context);
-  await waitForAsyncWork();
-
-  const panel = form.querySelector(".cc-label-panel");
-  assert.ok(panel);
-  assert.equal(panel.children.length, 9);
-
-  const suggestionButton = panel.children.find((button) => button.textContent === "suggestion:");
-  suggestionButton.click();
-
-  assert.equal(textarea.value, "suggestion: ");
-  assert.equal(textarea.selectionStart, "suggestion: ".length);
-  assert.ok(textarea.focused);
+test('existing GitHub editor uses saved labels, native input, prefix and cursor',async()=>{
+  const h=create({labels:['question','idea💡']});await h.flush();
+  const panel=h.doc.querySelector('.cc-label-panel'),editor=h.doc.querySelector('textarea');
+  assert.equal(panel.children.length,2);editor.value='Текст';panel.children[1].click();
+  assert.equal(editor.value,'idea💡: Текст');assert.equal(editor.selectionStart,'idea💡: '.length);assert.equal(editor.lastEvent.type,'input');
+  panel.children[1].click();assert.equal(editor.value,'idea💡: Текст');
 });
-
-test("places the panel above the modern GitHub textarea wrapper", async () => {
-  const { context, document } = createContext();
-  const { editor, inputWrapper, textAreaWrapper, textarea } = createModernGitHubCommentForm(document);
-  document.body.append(editor);
-
-  vm.runInNewContext(contentScript, context);
-  await waitForAsyncWork();
-
-  const panel = editor.querySelector(".cc-label-panel");
-  assert.ok(panel);
-  assert.equal(editor.children[0], panel);
-  assert.equal(editor.children[1], inputWrapper);
-  assert.equal(textAreaWrapper.children[0], textarea);
+test('modern GitHub wrapper gets the panel above it',async()=>{
+  const h=create({html:'<div class="MarkdownEditor-module__container"><div class="MarkdownInput-module__inputWrapper"><textarea placeholder="Leave a comment"></textarea></div></div>'});await h.flush();
+  assert.ok(h.doc.querySelector('.cc-label-panel').nextSibling.className.includes('inputWrapper'));
 });
-
-test("inserts selected label before existing text", async () => {
-  const { context, document } = createContext();
-  const { form, textarea } = createGitHubCommentForm(document);
-  textarea.value = "Нужно уточнить поведение.";
-  document.body.append(form);
-
-  vm.runInNewContext(contentScript, context);
-  await waitForAsyncWork();
-
-  const panel = form.querySelector(".cc-label-panel");
-  const questionButton = panel.children.find((button) => button.textContent === "question:");
-  questionButton.click();
-
-  assert.equal(textarea.value, "question: Нужно уточнить поведение.");
+test('dynamic editors, duplicate bootstrap, node removal and multiple fields',async()=>{
+  const h=create();await h.flush();
+  parse(h.doc,'<form><textarea name="comment[body]"></textarea></form>');h.mutate();await h.tick();
+  assert.equal(h.doc.querySelectorAll('.cc-label-panel').length,2);
+  vm.runInContext(source,h.context);h.mutate();await h.tick();assert.equal(h.doc.querySelectorAll('.cc-label-panel').length,2);
+  h.doc.querySelector('textarea').remove();h.mutate();await h.tick();assert.equal(h.doc.querySelectorAll('.cc-label-panel').length,1);
 });
-
-test("does not add UI outside github.com pull requests", () => {
-  const { context, document } = createContext({
-    hostname: "gitlab.com",
-    pathname: "/owner/repo/-/merge_requests/1"
-  });
-  const { form } = createGitHubCommentForm(document);
-  document.body.append(form);
-
-  vm.runInNewContext(contentScript, context);
-
-  assert.equal(form.querySelector(".cc-label-panel"), null);
+test('SPA route cleanup and return, disabled profiles and revoked permissions',async()=>{
+  const h=create();await h.flush();await h.navigate('https://github.com/a/b/issues/1');assert.equal(h.doc.querySelector('.cc-label-panel'),null);
+  await h.navigate('https://github.com/a/b/pull/1');assert.ok(h.doc.querySelector('.cc-label-panel'));
+  await h.changeProfiles([]);assert.equal(h.doc.querySelector('.cc-label-panel'),null);
+  await h.changeProfiles(P.all());assert.ok(h.doc.querySelector('.cc-label-panel'));
+  await h.message({type:'cc-stop'});h.mutate();await h.tick();assert.equal(h.doc.querySelector('.cc-label-panel'),null);
 });
-
-test("handles dynamically added comment forms once", async () => {
-  const { context, document, observers } = createContext();
-  vm.runInNewContext(contentScript, context);
-
-  const { form, textarea } = createGitHubCommentForm(document);
-  document.body.append(form);
-
-  observers[0].callback([{ addedNodes: [form] }]);
-  observers[0].callback([{ addedNodes: [form] }]);
-  await waitForAsyncWork();
-
-  assert.equal(form.querySelectorAll(".cc-label-panel").length, 1);
-  assert.equal(textarea.getAttribute("data-cc-label-panel"), "true");
+test('empty labels produce no panel or errors and new labels rebuild panels',async()=>{
+  const h=create({labels:[]});await h.flush();assert.equal(h.doc.querySelector('.cc-label-panel'),null);
+  await h.changeLabels(['todo']);assert.equal(h.doc.querySelector('.cc-label-panel').children.length,1);
+  await h.changeLabels([]);assert.equal(h.doc.querySelector('.cc-label-panel'),null);assert.equal(h.doc.querySelector('.cc-profile-notice'),null);
 });
-
-test("renders saved custom labels and inserts the selected value", async () => {
-  const { context, document } = createContext({ storedLabels: ["proposal", "idea💡"] });
-  const { form, textarea } = createGitHubCommentForm(document);
-  document.body.append(form);
-
-  vm.runInNewContext(contentScript, context);
-  await waitForAsyncWork();
-
-  const panel = form.querySelector(".cc-label-panel");
-  assert.equal(panel.children.length, 2);
-
-  const ideaButton = panel.children.find((button) => button.textContent === "idea💡:");
-  ideaButton.click();
-
-  assert.equal(textarea.value, "idea💡: ");
+test('missing anchor is delayed, deduplicated, closable and automatically restored',async()=>{
+  const p={...P.all()[0],anchorSelector:'.toolbar'};
+  const h=create({profiles:[p]});await h.flush();assert.equal(h.doc.querySelector('.cc-profile-notice'),null);
+  await h.tick(510);assert.ok(h.doc.querySelector('.cc-profile-notice'));
+  h.mutate();await h.tick(1000);assert.equal(h.doc.querySelectorAll('.cc-profile-notice').length,1);
+  const buttons=h.doc.querySelector('.cc-profile-notice').querySelectorAll('button');buttons[0].click();await h.flush();assert.equal(h.sent.at(-1).id,'github');
+  buttons[1].click();h.mutate();await h.tick(1000);assert.equal(h.doc.querySelector('.cc-profile-notice'),null);
+  const anchor=h.doc.createElement('div');anchor.className='toolbar';h.doc.querySelector('form').append(anchor);h.mutate();await h.tick();assert.ok(h.doc.querySelector('.cc-label-panel'));
 });
-
-test("does not render an empty panel for an intentionally empty label list", async () => {
-  const { context, document, observers } = createContext({ storedLabels: [] });
-  const { form, textarea } = createGitHubCommentForm(document);
-  document.body.append(form);
-
-  vm.runInNewContext(contentScript, context);
-  await waitForAsyncWork();
-
-  assert.equal(form.querySelector(".cc-label-panel"), null);
-  assert.equal(textarea.getAttribute("data-cc-label-panel"), "true");
-
-  observers[0].callback([{ addedNodes: [form] }]);
-  await waitForAsyncWork();
-
-  assert.equal(form.querySelectorAll(".cc-label-panel").length, 0);
+test('no open editor is normal; explicit diagnostics reports it without editing',async()=>{
+  const h=create({html:'<div></div>'});await h.flush();await h.tick(1000);assert.equal(h.doc.querySelector('.cc-profile-notice'),null);
+  assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'no-editor');
+});
+test('diagnostics distinguishes unsupported fields, URL, permission and successful binding',async()=>{
+  const h=create();await h.flush();const editor=h.doc.querySelector('textarea');editor.value='untouched';
+  assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'ok');assert.equal(editor.value,'untouched');
+  await h.changeProfiles([{...P.all()[0],editorAdapter:'rich-text'}]);assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'unsupported');
+  await h.navigate('https://github.com/a/b/issues/1');assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'wrong-url');
+  await h.changeProfiles([]);assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'no-access');
+});
+test('profile changes reposition active editor without changing text',async()=>{
+  const h=create();await h.flush();const editor=h.doc.querySelector('textarea');editor.value='Draft';
+  await h.changeProfiles([{...P.all()[0],placement:'after'}]);
+  assert.equal(h.doc.querySelector('text-expander').nextSibling.className,'cc-label-panel');assert.equal(editor.value,'Draft');
+});
+test('site moving an anchor away from its panel restores adjacency',async()=>{
+  const h=create();await h.flush();const wrapper=h.doc.querySelector('text-expander'),form=h.doc.querySelector('form');
+  const separator=h.doc.createElement('div');form.append(separator);form.append(wrapper);h.mutate();await h.tick();
+  assert.equal(h.doc.querySelector('.cc-label-panel').nextSibling,wrapper);
+});
+test('restoration clears visible errors and a new settings revision may notify again',async()=>{
+  const p={...P.all()[0],anchorSelector:'.missing'};const h=create({profiles:[p]});await h.flush();await h.tick(510);
+  assert.ok(h.doc.querySelector('.cc-profile-notice'));
+  await h.changeProfiles([{...p,anchorSelector:'',revision:1}]);assert.equal(h.doc.querySelector('.cc-profile-notice'),null);assert.ok(h.doc.querySelector('.cc-label-panel'));
+  await h.changeProfiles([{...p,revision:2}]);await h.tick(510);assert.ok(h.doc.querySelector('.cc-profile-notice'));
 });

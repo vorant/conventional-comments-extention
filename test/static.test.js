@@ -25,14 +25,16 @@ test("manifest declares GitHub Pull Request content script and popup settings", 
   };
 
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ["storage"]);
+  assert.deepEqual(manifest.permissions, ["storage", "scripting", "activeTab"]);
+  assert.deepEqual(manifest.optional_host_permissions, ["https://*/*", "http://*/*"]);
+  assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.icons, expectedIcons);
   assert.deepEqual(manifest.action, {
     default_popup: "src/popup.html",
     default_icon: expectedIcons
   });
-  assert.deepEqual(manifest.content_scripts[0].matches, ["https://github.com/*/*/pull/*"]);
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/content-script.js"]);
+  assert.deepEqual(manifest.content_scripts[0].matches, ["https://github.com/*"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["src/content-style.css"]);
 
   for (const iconPath of Object.values(expectedIcons)) {
@@ -41,12 +43,10 @@ test("manifest declares GitHub Pull Request content script and popup settings", 
   }
 });
 
-test("content script keeps MVP limited to github.com pull requests", () => {
-  const script = readText("src/content-script.js");
-
-  assert.match(script, /window\.location\.hostname === "github\.com"/);
-  assert.match(script, /pull\\\/\\d\+/);
-  assert.doesNotMatch(script, /gitlab|bitbucket/i);
+test("content script is bundled in dependency order with site profiles", () => {
+  const manifest = JSON.parse(readText("manifest.json"));
+  for (const file of manifest.content_scripts[0].js) assert.ok(fs.existsSync(path.join(rootDir,file)));
+  assert.equal(manifest.content_scripts[0].js.at(-1), "src/content-script.js");
 });
 
 test("popup and content script expose the same default Conventional Comments labels", () => {
@@ -77,7 +77,7 @@ test("popup static assets are wired without external dependencies", () => {
   assert.match(popupHtml, /<link rel="stylesheet" href="popup\.css">/);
   assert.match(popupHtml, /<script src="popup\.js"><\/script>/);
   assert.match(popupHtml, /id="theme-toggle"/);
-  assert.doesNotMatch(popupHtml, /https?:\/\//);
+  assert.doesNotMatch(popupHtml, /(?:src|href)="https?:\/\//);
   assert.match(popupCss, /@font-face/);
   assert.match(popupCss, /fonts\/symbols-nerd-font\.woff2/);
   assert.match(popupCss, /body\[data-theme="dark"\]/);
@@ -93,7 +93,7 @@ test("popup static assets are wired without external dependencies", () => {
   assert.ok(fs.existsSync(fontLicensePath));
 });
 
-test("README documents GitHub-only scope in Russian", () => {
+test("README documents site profiles in Russian", () => {
   const readme = readText("README.md");
 
   assert.match(readme, /GitHub Pull Requests/);
@@ -102,6 +102,7 @@ test("README documents GitHub-only scope in Russian", () => {
   assert.match(readme, /иконк[а-я]+ расширения/);
   assert.match(readme, /светл[а-я]+ и темн[а-я]+ тем/);
   assert.match(readme, /иконку корзины/);
-  assert.match(readme, /В MVP не входят GitLab, Bitbucket/);
+  assert.match(readme, /Проверить профиль/);
+  assert.match(readme, /предварительн/);
   assert.match(readme, /Локальная установка/);
 });

@@ -1,9 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Conventional Comments для GitHub",
-  "description": "Добавляет labels Conventional Comments к полю комментария в GitHub Pull Requests.",
-  "version": "0.1.0",
-  "permissions": ["storage"],
+  "name": "Conventional Comments",
+  "description": "Панель Conventional Comments для GitHub, GitLab, Bitbucket и настраиваемых сайтов.",
+  "version": "0.2.0",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
   "icons": {
     "16": "src/icons/icon-16.png",
     "32": "src/icons/icon-32.png",
@@ -21,10 +25,30 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://github.com/*/*/pull/*"],
-      "js": ["src/content-script.js"],
-      "css": ["src/content-style.css"],
+      "matches": [
+        "https://github.com/*"
+      ],
+      "js": [
+        "src/site-profiles.js",
+        "src/editor-adapters.js",
+        "src/panel-engine.js",
+        "src/content-script.js"
+      ],
+      "css": [
+        "src/content-style.css"
+      ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "minimum_chrome_version": "102",
+  "host_permissions": [
+    "https://github.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  }
 }

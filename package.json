@@ -1,9 +1,9 @@
 {
   "name": "conventional-comments-github-extension",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Chrome-расширение для Conventional Comments в GitHub Pull Requests.",
+  "description": "Conventional Comments для GitHub и настраиваемых сайтов.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test test/*.test.js"
   }
 }

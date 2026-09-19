@@ -1,0 +1,84 @@
+"use strict";
+importScripts("site-profiles.js");
+const P = globalThis.CCProfiles;
+const FILES = ["src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"];
+const CSS = ["src/content-style.css"];
+let queue = Promise.resolve();
+const serial = (action) => { const result = queue.then(action); queue = result.catch(() => {}); return result; };
+async function data() { return P.config((await chrome.storage.local.get(P.KEY))[P.KEY]); }
+async function allowed(profiles) {
+  const result = [];
+  for (const p of profiles) if (p.enabled && await chrome.permissions.contains({ origins: [P.originPattern(p.origin)] })) result.push(p);
+  return result;
+}
+async function ensureTab(tab) {
+  try { await chrome.tabs.sendMessage(tab.id, { type: "cc-ping" }); }
+  catch {
+    await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: CSS });
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: FILES });
+  }
+  await chrome.tabs.sendMessage(tab.id, { type: "cc-reload" });
+}
+async function reconcile() {
+  const profiles = await allowed(P.all(await data()));
+  const patterns = [...new Set(profiles.filter((p) => p.origin !== "https://github.com").map((p) => P.originPattern(p.origin)))].sort();
+  const current = await chrome.scripting.getRegisteredContentScripts();
+  const own = current.filter((s) => s.id === "cc-sites");
+  if (JSON.stringify(own[0]?.matches || []) !== JSON.stringify(patterns)) {
+    if (own.length) await chrome.scripting.unregisterContentScripts({ ids: ["cc-sites"] });
+    if (patterns.length) await chrome.scripting.registerContentScripts([{ id: "cc-sites", matches: patterns, excludeMatches: ["https://github.com/*"], js: FILES, css: CSS, runAt: "document_idle", persistAcrossSessions: true }]);
+  }
+  const tabs = await chrome.tabs.query({});
+  await Promise.allSettled(tabs.map(async (tab) => {
+    let origin;
+    try { origin = new URL(tab.url).origin; } catch { /* URL can be hidden after permission revocation. */ }
+    if (profiles.some((p) => p.origin === origin)) await ensureTab(tab);
+    else { try { await chrome.tabs.sendMessage(tab.id, { type: "cc-stop" }); } catch { /* No injected context. */ } }
+  }));
+}
+function extensionPage(sender) { return !sender.tab || sender.url?.startsWith(chrome.runtime.getURL("")); }
+async function handle(message, sender) {
+  if (message.type === "cc-config") return { ok: true, profiles: await allowed(P.all(await data())) };
+  if (message.type === "cc-open-settings") {
+    const profiles = P.all(await data());
+    if (!profiles.some((p) => p.id === message.id)) throw new Error("Профиль не найден.");
+    await chrome.tabs.create({ url: chrome.runtime.getURL(`src/popup.html?profile=${encodeURIComponent(message.id)}&tab=${sender.tab?.id || ""}`) });
+    return { ok: true };
+  }
+  if (!extensionPage(sender)) throw new Error("Действие доступно только в настройках расширения.");
+  if (message.type === "cc-refresh") { await serial(reconcile); return { ok: true }; }
+  if (message.type === "cc-save" || message.type === "cc-remove") {
+    return serial(async () => {
+      const old = await data();
+      const next = message.type === "cc-save" ? P.save(old, P.validate(message.profile, P.all(old))) : P.remove(old, message.id);
+      await chrome.storage.local.set({ [P.KEY]: next });
+      await reconcile();
+      return { ok: true };
+    });
+  }
+  if (message.type === "cc-check") {
+    const p = P.all(await data()).find((item) => item.id === message.id);
+    if (!p || !p.enabled) return { ok: true, status: "disabled" };
+    if (!(await allowed([p])).length) return { ok: true, status: "no-access" };
+    const tab = message.tabId ? await chrome.tabs.get(message.tabId) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+    if (!tab) return { ok: true, status: "no-tab" };
+    if (!P.matches(p, tab.url)) return { ok: true, status: "wrong-url" };
+    try {
+      await ensureTab(tab);
+      return { ok: true, ...await chrome.tabs.sendMessage(tab.id, { type: "cc-inspect", id: p.id }) };
+    } catch { return { ok: true, status: "no-connection" }; }
+  }
+  throw new Error("Неизвестная команда.");
+}
+chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  if (!message?.type?.startsWith("cc-")) return;
+  handle(message, sender).then(respond, (error) => respond({ ok: false, error: error.message }));
+  return true;
+});
+const sync = () => serial(reconcile).catch((error) => console.error("Conventional Comments:", error));
+chrome.runtime.onInstalled.addListener(sync);
+chrome.runtime.onStartup.addListener(sync);
+chrome.permissions.onAdded.addListener(sync);
+chrome.permissions.onRemoved.addListener(sync);
+chrome.storage.onChanged.addListener((changes, area) => { if (area === "local" && changes[P.KEY]) sync(); });
+sync();
