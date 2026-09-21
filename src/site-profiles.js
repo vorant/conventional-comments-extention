@@ -6,26 +6,36 @@
       editorSelector: 'textarea[name="comment[body]"], textarea[aria-label*="comment" i], textarea[placeholder*="comment" i]',
       containerSelector: '[class*="MarkdownEditor-module__container"], [class*="AddCommentEditor-module__ConversationCommentBox"], .js-previewable-comment-form, form',
       anchorSelector: '', placement: "before", editorAdapter: "textarea", anchorMode: "github-wrapper" },
-    { id: "gitlab", name: "GitLab (предварительный)", origin: "https://gitlab.com", paths: ["/*/-/merge_requests/*"], enabled: true,
+    { id: "gitlab", name: "GitLab", origin: "https://gitlab.com", paths: ["/*/-/merge_requests/*"], enabled: true,
       editorSelector: 'textarea[name="note[note]"], textarea.js-note-text', containerSelector: '.note-form, .js-note-form, form',
       anchorSelector: '', placement: "before", editorAdapter: "textarea", anchorMode: "editor" },
-    { id: "bitbucket", name: "Bitbucket (предварительный)", origin: "https://bitbucket.org", paths: ["/*/*/pull-requests/*"], enabled: true,
+    { id: "bitbucket", name: "Bitbucket", origin: "https://bitbucket.org", paths: ["/*/*/pull-requests/*"], enabled: true,
       editorSelector: '.ProseMirror[contenteditable="true"]', containerSelector: '.ak-editor-content-area, .akEditor, form',
       anchorSelector: '', placement: "before", editorAdapter: "rich-text", anchorMode: "editor" }
   ];
   const clone = (value) => JSON.parse(JSON.stringify(value));
   function config(value) {
     if (value === undefined) return { schemaVersion: 1, overrides: {}, custom: [], revision: 0 };
-    if (!value || value.schemaVersion !== 1 || !value.overrides || !Array.isArray(value.custom)) {
+    if (!value || value.schemaVersion !== 1 || !value.overrides || typeof value.overrides !== "object" || Array.isArray(value.overrides) || !Array.isArray(value.custom)) {
       throw new Error("Неизвестный формат профилей. Настройки не перезаписаны.");
     }
     return clone(value);
   }
+  const editable = ["origin", "paths", "editorSelector", "placement"];
   function all(value) {
     const data = config(value);
-    return [...defaults.map((p) => ({ ...clone(p), ...data.overrides[p.id], id: p.id, builtin: true, revision: data.revision || 0 })),
-      ...data.custom.map((p) => ({ ...p, builtin: false, revision: data.revision || 0 }))];
+    return defaults.map((base) => {
+      const profile = { ...clone(base), builtin: true, revision: data.revision || 0 };
+      for (const field of editable) {
+        if (data.overrides[base.id]?.[field] === undefined) continue;
+        try {
+          profile[field] = validate({ ...profile, [field]: data.overrides[base.id][field] }, [], root.document)[field];
+        } catch { /* An obsolete field falls back independently to its default. */ }
+      }
+      return profile;
+    });
   }
+
   function pathMatches(mask, pathname) {
     const pattern = mask.split("*").map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
     return new RegExp(`^${pattern}$`).test(pathname);
@@ -53,7 +63,7 @@
     } catch { return false; }
   }
   function select(profiles, href) {
-    return profiles.find((p) => !p.builtin && matches(p, href)) || profiles.find((p) => matches(p, href)) || null;
+    return defaults.map((base) => profiles.find((p) => p.id === base.id)).find((p) => p && matches(p, href)) || null;
   }
   function originPattern(origin) {
     const url = new URL(origin);
@@ -61,10 +71,10 @@
     return `${url.protocol}//${url.hostname}/*`;
   }
   function validate(input, profiles, doc) {
-    const p = clone(input);
-    if (!p || typeof p.id !== "string" || !/^[a-zA-Z0-9-]+$/.test(p.id) || typeof p.enabled !== "boolean") throw new Error("Некорректный идентификатор или состояние профиля.");
-    if (typeof p.name !== "string" || !p.name.trim()) throw new Error("Имя: укажите название профиля.");
-    p.name = p.name.trim();
+    const base = defaults.find((p) => p.id === input?.id);
+    if (!base) throw new Error("Неизвестный встроенный профиль.");
+    const p = { ...clone(base), builtin: true };
+    for (const field of editable) if (input[field] !== undefined) p[field] = clone(input[field]);
     let url;
     try { url = new URL(p.origin); } catch { throw new Error("Адрес: укажите полный HTTP(S) адрес сайта."); }
     if (!/^https?:$/.test(url.protocol) || url.hostname.includes("*") || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
@@ -74,37 +84,26 @@
     if (!Array.isArray(p.paths) || !p.paths.length || p.paths.length > 20 || p.paths.some((s) => typeof s !== "string" || !s.startsWith("/") || s.length > 250 || /[?#\s]/.test(s))) {
       throw new Error("Страницы: задайте пути с начальным /; разрешена маска * (до 20 путей по 250 символов).");
     }
-    for (const field of ["editorSelector", "containerSelector", "anchorSelector"]) {
-      if (typeof p[field] !== "string" || p[field].length > 2000 || (field === "editorSelector" && !p[field].trim())) throw new Error(`${field}: укажите CSS-селектор.`);
-      p[field] = p[field].trim();
-      if (p[field] && doc) {
-        try { doc.querySelector(p[field]); } catch { throw new Error(`${field}: неверный CSS-селектор.`); }
-      }
+    if (typeof p.editorSelector !== "string" || p.editorSelector.length > 2000 || !p.editorSelector.trim()) throw new Error("Селектор редактора: укажите CSS-селектор.");
+    p.editorSelector = p.editorSelector.trim();
+    if (doc) {
+      try { doc.querySelector(p.editorSelector); } catch { throw new Error("Селектор редактора: неверный CSS-селектор."); }
     }
-    if (!["before", "after", "prepend", "append"].includes(p.placement)) throw new Error("Неизвестное положение панели.");
-    if (!["textarea", "rich-text"].includes(p.editorAdapter)) throw new Error("Неизвестный тип редактора.");
-    if (!["editor", "github-wrapper"].includes(p.anchorMode)) throw new Error("Неизвестный способ размещения.");
-    for (const other of profiles) {
-      if (other.id !== p.id && !other.builtin && !p.builtin && other.origin === p.origin && other.paths.some((a) => p.paths.some((b) => overlaps(a, b)))) {
-        throw new Error(`Страницы пересекаются с профилем «${other.name}». Измените маски или удалите другой профиль.`);
-      }
-    }
+    if (!["before", "after"].includes(p.placement)) throw new Error("Неизвестное положение панели.");
     return p;
   }
   function save(value, p) {
-    const data = config(value), item = clone(p);
-    delete item.builtin;
-    delete item.revision;
+    const data = config(value), valid = validate(p, [], root.document);
+    const item = Object.fromEntries(editable.map((field) => [field, valid[field]]));
     data.revision = (data.revision || 0) + 1;
-    if (defaults.some((d) => d.id === p.id)) data.overrides[p.id] = item;
-    else data.custom = [...data.custom.filter((d) => d.id !== p.id), item];
+    data.overrides[p.id] = item;
     return data;
   }
   function remove(value, id) {
+    if (!defaults.some((p) => p.id === id)) throw new Error("Неизвестный встроенный профиль.");
     const data = config(value);
     data.revision = (data.revision || 0) + 1;
     delete data.overrides[id];
-    data.custom = data.custom.filter((p) => p.id !== id);
     return data;
   }
   const api = { KEY, defaults, config, all, pathMatches, overlaps, matches, select, originPattern, validate, save, remove };

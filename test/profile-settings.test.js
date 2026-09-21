@@ -1,34 +1,67 @@
 const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const vm=require('node:vm');const {Document,parse}=require('./helpers/dom');const P=require('../src/site-profiles');
 const html=fs.readFileSync(`${__dirname}/../src/popup.html`,'utf8');const js=fs.readFileSync(`${__dirname}/../src/profile-settings.js`,'utf8');
 const flush=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
-function setup(){
-  const doc=parse(new Document(),html);let config,permission=false,check='ok';const calls=[];
+function setup({delayed=false,search=''}={}){
+  const doc=parse(new Document(),html);let config,permission=false;const calls=[],pending=[];
   const chrome={storage:{local:{async get(){return {[P.KEY]:config};}}},permissions:{async contains(){return permission;},request(o){calls.push(['request',o]);return Promise.resolve(permission);}},
-    runtime:{async sendMessage(m){calls.push(['message',m]);if(m.type==='cc-save')config=P.save(config,m.profile);if(m.type==='cc-remove')config=P.remove(config,m.id);return {ok:true,status:check,count:2,valid:2};}}};
-  vm.runInNewContext(js,{document:doc,CCProfiles:P,chrome,URLSearchParams,location:{search:''},crypto:{randomUUID:()=> 'new-profile'}});
-  const el=(id)=>doc.getElementById(id);const submit=()=>el('profile-form').dispatchEvent({type:'submit',preventDefault(){}});
-  return {doc,el,submit,calls,getConfig:()=>config,setPermission(v){permission=v;},setCheck(v){check=v;}};
+    runtime:{sendMessage(m){calls.push(['message',m]);return new Promise(resolve=>{const complete=(ok=true)=>{if(ok){if(m.type==='cc-save')config=P.save(config,m.profile);if(m.type==='cc-remove')config=P.remove(config,m.id);}resolve({ok,error:'Ошибка записи'});};if(delayed)pending.push(complete);else complete();});}}};
+  vm.runInNewContext(js,{document:doc,CCProfiles:P,chrome,URLSearchParams,location:{search}});
+  const el=(id)=>doc.getElementById(id);
+  const edit=(field,value,event='input')=>{el('profile-'+field).value=value;el('profile-'+field).dispatchEvent({type:event});};
+  return {doc,el,edit,calls,pending,getConfig:()=>config,setPermission(v){permission=v;}};
 }
-test('settings render built-ins and save positioning without touching label storage',async()=>{
-  const h=setup();await flush();assert.equal(h.el('profile-list').children.length,3);
-  h.el('profile-placement').value='after';h.submit();await flush();
-  assert.equal(h.getConfig().overrides.github.placement,'after');assert.match(h.el('profile-status').textContent,/сохранён/);
+test('form has only built-in profiles, editable fields and two placements',async()=>{
+  const h=setup();await flush();assert.deepEqual(h.el('profile-list').children.map(x=>x.textContent),['GitHub','GitLab','Bitbucket']);
+  for(const id of ['name','enabled','new','delete','template','containerSelector','anchorSelector','editorAdapter','anchorMode','check'])assert.equal(h.el('profile-'+id),null);
+  assert.deepEqual(h.el('profile-placement').children.map(x=>x.value),['before','after']);
+  assert.equal(h.el('profile-form').querySelector('button[type="submit"]'),null);
 });
-test('invalid selector shows a field error and sends no save',async()=>{
-  const h=setup();await flush();h.el('profile-editorSelector').value='[';h.submit();await flush();
-  assert.equal(h.getConfig(),undefined);assert.match(h.el('profile-status').textContent,/editorSelector/);
+test('each editable field autosaves, duplicate change events do not save twice',async()=>{
+  const h=setup();await flush();
+  for(const [field,value] of [['origin','https://review.example'],['paths','/review/*\n/pull/*'],['editorSelector','textarea.review'],['placement','after']]){
+    h.edit(field,value);h.edit(field,value,'change');await flush();
+    assert.deepEqual(h.getConfig().overrides.github[field],field==='paths'?value.split('\n'):value);
+  }
+  assert.equal(h.calls.filter(([,m])=>m.type==='cc-save').length,4);assert.equal(h.el('profile-status').textContent,'Сохранено');
 });
-test('manual profile is created, connected, checked and deleted through visible controls',async()=>{
-  const h=setup();await flush();h.el('profile-template').value='manual';h.el('profile-new').click();
-  h.el('profile-origin').value='https://review.example';h.submit();await flush();assert.equal(h.getConfig().custom.length,1);
-  h.el('profile-connect').click();await flush();assert.match(h.el('profile-status').textContent,/не предоставлен/);
-  h.setPermission(true);h.el('profile-connect').click();await flush();assert.match(h.el('profile-status').textContent,/разрешён/);
-  h.el('profile-check').click();await flush();assert.match(h.el('profile-status').textContent,/редакторов 2/);
-  h.setCheck('no-editor');h.el('profile-check').click();await flush();assert.match(h.el('profile-status').textContent,/Откройте поле/);
-  h.el('profile-delete').click();await flush();assert.equal(h.getConfig().custom.length,0);
+test('invalid fields remain visible and do not replace last saved configuration',async()=>{
+  const h=setup();await flush();h.edit('placement','after');await flush();const before=JSON.stringify(h.getConfig());
+  for(const [field,value] of [['editorSelector','['],['origin','bad']]){h.edit(field,value);await flush();assert.equal(h.el('profile-'+field).value,value);assert.equal(h.el('profile-status').getAttribute('data-error'),'true');assert.equal(JSON.stringify(h.getConfig()),before);}
 });
-test('unsaved edits cannot request permissions for the wrong address; reset preserves other profiles',async()=>{
-  const h=setup();await flush();h.el('profile-origin').value='https://other.example';h.el('profile-connect').click();await flush();
-  assert.equal(h.calls.filter(([t])=>t==='request').length,0);assert.match(h.el('profile-status').textContent,/Сначала сохраните/);
-  h.submit();await flush();h.el('profile-reset').click();await flush();assert.equal(h.el('profile-origin').value,'https://github.com');
+test('rapid edits and switching retain per-profile drafts and ignore old responses',async()=>{
+  const h=setup({delayed:true});await flush();h.edit('origin','https://first.example');h.edit('origin','https://last.example');
+  h.edit('list','gitlab','change');h.edit('placement','after');
+  h.pending.shift()();await flush();assert.equal(h.el('profile-origin').value,'https://gitlab.com');
+  h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Сохранение…');
+  h.pending.shift()();await flush();h.edit('list','github','change');
+  assert.equal(h.el('profile-origin').value,'https://last.example');assert.equal(h.getConfig().overrides.github.origin,'https://last.example');assert.equal(h.getConfig().overrides.gitlab.placement,'after');
+});
+test('responses do not render the field again, invalid newer draft masks old success',async()=>{
+  const h=setup({delayed:true});await flush();h.edit('origin','https://saved.example');
+  const input=h.el('profile-origin');let writes=0,value=input.value;
+  Object.defineProperty(input,'value',{get:()=>value,set(v){writes++;value=v;},configurable:true});
+  h.pending.shift()();await flush();assert.equal(writes,0);
+  h.edit('origin','https://next.example');h.edit('origin','bad');h.pending.shift()();await flush();
+  assert.equal(input.value,'bad');assert.equal(h.el('profile-status').getAttribute('data-error'),'true');
+});
+test('reset while saving supersedes old responses and later edits follow reset',async()=>{
+  const h=setup({delayed:true});await flush();h.edit('origin','https://old.example');h.el('profile-reset').click();
+  assert.equal(h.el('profile-origin').value,'https://github.com');h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Сохранение…');
+  h.pending.shift()();await flush();assert.equal(P.all(h.getConfig())[0].origin,'https://github.com');
+  h.el('profile-reset').click();h.edit('placement','after');h.pending.shift()();await flush();h.pending.shift()();await flush();assert.equal(P.all(h.getConfig())[0].placement,'after');
+});
+test('write failure can retry the same snapshot through another field event',async()=>{
+  const h=setup({delayed:true});await flush();h.edit('placement','after');h.pending.shift()(false);await flush();
+  assert.match(h.el('profile-status').textContent,/Ошибка записи/);assert.equal(h.el('profile-connect').disabled,true);
+  h.edit('placement','after','change');h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Сохранено');
+});
+test('access requires current confirmed snapshot and is requested synchronously only on click',async()=>{
+  const h=setup({delayed:true});await flush();h.edit('origin','https://other.example');h.el('profile-connect').click();assert.equal(h.calls.filter(([t])=>t==='request').length,0);
+  h.pending.shift()();await flush();assert.equal(h.el('profile-connect').disabled,false);
+  h.el('profile-connect').click();assert.deepEqual(Array.from(h.calls.find(([t])=>t==='request')[1].origins),['https://other.example/*']);await flush();
+  assert.match(h.el('profile-status').textContent,/не предоставлен/);assert.equal(h.getConfig().overrides.github.origin,'https://other.example');
+  h.setPermission(true);h.el('profile-connect').click();await flush();h.pending.shift()();await flush();assert.match(h.el('profile-access').textContent,/разрешён/);
+});
+test('settings link opens selected profile',async()=>{
+  const h=setup({search:'?profile=gitlab&tab=1'});await flush();assert.equal(h.el('site-settings').open,true);assert.equal(h.el('profile-list').value,'gitlab');
 });

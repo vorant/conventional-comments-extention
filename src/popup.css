@@ -235,10 +235,7 @@ button:focus {
 .site-settings select, .site-settings textarea { width: 100%; min-width: 0; padding: 6px; border: 1px solid var(--cc-popup-border); border-radius: 6px; color: var(--cc-popup-fg); background: var(--cc-popup-input-bg); font: inherit; }
 .profile-form { display: grid; gap: 10px; margin: 12px 0; }
 .profile-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.profile-actions select { flex: 1; width: auto; }
 .profile-help { color: var(--cc-popup-muted); font-size: 12px; margin: 4px 0; }
-.site-settings .profile-enabled { display: flex; align-items: center; }
-.profile-enabled input { width: auto; }
 #profile-status { overflow-wrap: anywhere; }
 #profile-status[data-error="true"] { color: var(--cc-popup-danger); }
 .site-settings button:disabled { opacity: .5; cursor: default; }

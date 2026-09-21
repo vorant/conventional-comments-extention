@@ -25,7 +25,7 @@
     selection.removeAllRanges();
     selection.addRange(range);
     if (!(editor.textContent || "").startsWith(prefix)) {
-      if (!doc.execCommand("insertText", false, prefix)) throw new Error("Редактор отклонил вставку. Выберите другой тип редактора в настройках.");
+      if (!doc.execCommand("insertText", false, prefix)) throw new Error("Редактор отклонил вставку. Этот редактор несовместим с предустановкой сайта.");
     } else {
       const walker = doc.createTreeWalker(editor, 4);
       let remaining = prefix.length, node;

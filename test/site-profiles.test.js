@@ -19,20 +19,28 @@ test('profiles persist overrides separately and reset without changing labels', 
   assert.equal(data.ccLabels,undefined);
   assert.throws(()=>P.config({schemaVersion:2}),/формат/);
 });
-test('exact origin and paths, custom precedence and rejected conflicting profiles', () => {
-  const p = custom();
-  assert.equal(P.matches(p,'https://git.example:8443/review/12?foo=1'),true);
-  assert.equal(P.matches(p,'https://git.example/review/12'),false);
-  assert.equal(P.matches(p,'https://git.example:8443/issues/12'),false);
-  assert.equal(P.originPattern(p.origin),'https://git.example/*');
-  assert.throws(()=>P.validate(custom({id:'second'}),[p]),/пересекаются/);
-  assert.doesNotThrow(()=>P.validate(custom({id:'second',paths:['/issues/*']}),[p]));
-  const override = custom({origin:'https://github.com',paths:['/*'], id:'custom'});
-  assert.equal(P.select([...P.all(),override],'https://github.com/a/b/pull/1').id,'custom');
+test('only built-ins apply, hidden overrides are ignored and matching follows default order', () => {
+  const data={schemaVersion:1,revision:4,custom:[custom()],overrides:{github:{name:'Other',enabled:false,editorAdapter:'rich-text',containerSelector:'.old',anchorSelector:'.old',anchorMode:'editor',placement:'after',origin:'https://git.example:8443',paths:['/review/*'],editorSelector:'.review'},gitlab:{origin:'https://git.example:8443',paths:['/*']}}};
+  const before=JSON.stringify(data), profiles=P.all(data);
+  assert.equal(profiles.length,3);assert.equal(profiles[0].name,'GitHub');assert.equal(profiles[0].enabled,true);
+  for(const field of ['editorAdapter','containerSelector','anchorSelector','anchorMode']) assert.equal(profiles[0][field],P.defaults[0][field]);
+  assert.equal(profiles[0].placement,'after');assert.equal(profiles[0].editorSelector,'.review');
+  assert.equal(P.select(profiles,'https://git.example:8443/review/12').id,'github');
+  assert.equal(P.select(profiles,'https://git.example/review/12'),null);
+  assert.equal(P.originPattern(profiles[0].origin),'https://git.example/*');
+  assert.equal(JSON.stringify(data),before);
+  assert.deepEqual(P.save(data,profiles[0]).custom,data.custom);
+  assert.deepEqual(P.remove(data,'github').custom,data.custom);
+  for(const fn of [()=>P.save(data,custom()),()=>P.remove(data,'local'),()=>P.save({schemaVersion:2},profiles[0])]) assert.throws(fn);
 });
-test('validation rejects invalid selectors and addresses without modifying previous data', () => {
-  const doc = new Document(), p = custom(), before = JSON.stringify(p);
-  for (const extra of [{editorSelector:'['},{origin:'https://a/path'},{origin:'javascript:alert(1)'},{paths:['?query']},{editorAdapter:'script'}]) assert.throws(()=>P.validate({...p,...extra},[],doc));
+test('obsolete fields fall back separately while valid overrides survive',()=>{
+  const profiles=P.all({schemaVersion:1,custom:[],overrides:{github:{origin:'bad',paths:['/valid/*'],editorSelector:'',placement:'append'}}});
+  assert.equal(profiles[0].origin,P.defaults[0].origin);assert.equal(profiles[0].placement,'before');
+  assert.equal(profiles[0].editorSelector,P.defaults[0].editorSelector);assert.deepEqual(profiles[0].paths,['/valid/*']);
+});
+test('validation rejects invalid editable fields without changing input', () => {
+  const doc=new Document(),p=P.all()[0],before=JSON.stringify(p);
+  for(const extra of [{editorSelector:'['},{origin:'https://a/path'},{origin:'javascript:alert(1)'},{paths:['?query']},{placement:'append'}]) assert.throws(()=>P.validate({...p,...extra},[],doc));
   assert.equal(JSON.stringify(p),before);
 });
 test('GitHub wrapper and GitLab textarea are resolved in synthetic fixtures', () => {
@@ -92,5 +100,5 @@ test('placement never inserts toolbar inside an editable rich-text subtree',()=>
   assert.equal(E.inspect(doc,p,A).status,'placement');
 });
 test('wildcard hostname is rejected rather than requesting unintended hosts',()=>{
-  assert.throws(()=>P.validate(custom({origin:'https://*.example.com'}),[]),/Адрес/);
+  assert.throws(()=>P.validate({...P.defaults[0],origin:'https://*.example.com'},[]),/Адрес/);
 });

@@ -29,33 +29,17 @@
         <summary>Сайты и размещение панели</summary>
         <label for="profile-list">Профиль</label>
         <select id="profile-list"></select>
-        <div class="profile-actions">
-          <select id="profile-template" aria-label="Шаблон нового профиля">
-            <option value="manual">Ручная настройка</option>
-            <option value="github">GitHub</option>
-            <option value="gitlab">GitLab</option>
-            <option value="bitbucket">Bitbucket</option>
-          </select>
-          <button id="profile-new" type="button">Добавить сайт</button>
-        </div>
         <p id="profile-warning" class="profile-help"></p>
         <form id="profile-form" class="profile-form">
-          <label>Название<input id="profile-name" required maxlength="120"></label>
           <label>Адрес сайта<input id="profile-origin" required placeholder="https://git.company.ru"></label>
           <label>Страницы (один путь на строку)<textarea id="profile-paths" rows="2" required></textarea></label>
           <p class="profile-help">Например, /*/-/merge_requests/*; * означает любую часть пути.</p>
           <label>CSS-селектор редактора<input id="profile-editorSelector" required spellcheck="false"></label>
-          <label>CSS-селектор контейнера<input id="profile-containerSelector" spellcheck="false"></label>
-          <p class="profile-help">Ближайший контейнер одного комментария. Пустое поле — родитель редактора.</p>
-          <label>Тип редактора<select id="profile-editorAdapter"><option value="textarea">Обычное текстовое поле (textarea)</option><option value="rich-text">Визуальный редактор (экспериментально)</option></select></label>
-          <label>Размещать относительно<select id="profile-anchorMode"><option value="editor">Редактора или указанного элемента</option><option value="github-wrapper">Обёртки редактора GitHub</option></select></label>
-          <label>CSS-селектор элемента размещения<input id="profile-anchorSelector" spellcheck="false"></label>
-          <p class="profile-help">Необязательно. Ищется внутри контейнера этого комментария; имеет приоритет над обёрткой GitHub.</p>
-          <label>Положение панели<select id="profile-placement"><option value="before">Над редактором / перед элементом</option><option value="after">Под редактором / после элемента</option><option value="prepend">В начале контейнера</option><option value="append">В конце контейнера</option></select></label>
-          <label class="profile-enabled"><input id="profile-enabled" type="checkbox">Профиль включён</label>
-          <div class="profile-actions"><button type="submit">Сохранить</button><button id="profile-reset" type="button">Восстановить</button><button id="profile-delete" type="button">Удалить</button></div>
+          <label>Положение панели<select id="profile-placement"><option value="before">Над редактором</option><option value="after">Под редактором</option></select></label>
+          <p class="profile-help">Корректные изменения сохраняются автоматически.</p>
+          <div class="profile-actions"><button id="profile-reset" type="button">Восстановить</button></div>
         </form>
-        <div class="profile-actions"><button id="profile-connect" type="button">Разрешить доступ к сайту</button><button id="profile-check" type="button">Проверить профиль</button></div>
+        <div class="profile-actions"><button id="profile-connect" type="button" disabled>Разрешить доступ к сайту</button></div>
         <p id="profile-access" class="profile-help"></p>
         <p id="profile-status" role="status" aria-live="polite"></p>
       </details>

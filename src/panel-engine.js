@@ -2,13 +2,13 @@
   "use strict";
   function target(editor, profile) {
     const container = profile.containerSelector ? editor.closest(profile.containerSelector) : editor.parentElement;
-    if (!container) return { error: "container", detail: "Не найден контейнер редактора (containerSelector)." };
+    if (!container) return { error: "container", detail: "Не найдено место панели рядом с редактором. Проверьте селектор редактора; версия сайта может быть несовместима с предустановкой." };
     let anchor = editor;
     if (profile.anchorSelector) {
       const candidates = [...container.querySelectorAll(profile.anchorSelector)];
       if (container.matches(profile.anchorSelector)) candidates.unshift(container);
       const editors = [...container.querySelectorAll(profile.editorSelector)];
-      if (candidates.length !== 1 || editors.length !== 1) return { error: "anchor", detail: "Элемент размещения отсутствует или неоднозначен (anchorSelector / containerSelector)." };
+      if (candidates.length !== 1 || editors.length !== 1) return { error: "anchor", detail: "Не удалось однозначно определить место панели для этого редактора." };
       anchor = candidates[0];
     } else if (profile.anchorMode === "github-wrapper") {
       anchor = editor.closest('[class*="MarkdownInput-module__inputWrapper"]') || editor.closest("text-expander") || editor;
@@ -23,11 +23,11 @@
   function inspect(doc, profile, adapters) {
     let editors;
     try { editors = [...doc.querySelectorAll(profile.editorSelector)].filter((e) => !e.closest('[data-cc-owned]')); }
-    catch { return { status: "selector", detail: "Неверный editorSelector.", items: [] }; }
+    catch { return { status: "selector", detail: "Неверный CSS-селектор редактора.", items: [] }; }
     const items = editors.map((editor) => {
-      if (!adapters.supports(editor, profile.editorAdapter)) return { editor, error: "unsupported", detail: "Тип редактора не поддерживается выбранным адаптером." };
+      if (!adapters.supports(editor, profile.editorAdapter)) return { editor, error: "unsupported", detail: "Редактор несовместим с предустановкой сайта. Проверьте селектор редактора." };
       try { return { editor, ...target(editor, profile) }; }
-      catch { return { editor, error: "selector", detail: "Неверный селектор контейнера или элемента размещения." }; }
+      catch { return { editor, error: "selector", detail: "Не удалось определить место панели с предустановкой сайта." }; }
     });
     const failed = items.find((i) => i.error);
     return { status: !items.length ? "no-editor" : failed ? failed.error : "ok", detail: failed?.detail, items };

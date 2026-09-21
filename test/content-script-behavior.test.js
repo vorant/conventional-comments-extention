@@ -71,16 +71,16 @@ test('missing anchor is delayed, deduplicated, closable and automatically restor
   buttons[1].click();h.mutate();await h.tick(1000);assert.equal(h.doc.querySelector('.cc-profile-notice'),null);
   const anchor=h.doc.createElement('div');anchor.className='toolbar';h.doc.querySelector('form').append(anchor);h.mutate();await h.tick();assert.ok(h.doc.querySelector('.cc-label-panel'));
 });
-test('no open editor is normal; explicit diagnostics reports it without editing',async()=>{
+test('no open editor is normal and removed explicit diagnostics is ignored',async()=>{
   const h=create({html:'<div></div>'});await h.flush();await h.tick(1000);assert.equal(h.doc.querySelector('.cc-profile-notice'),null);
-  assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'no-editor');
+  assert.equal(await h.message({type:'cc-inspect',id:'github'}),undefined);
 });
-test('diagnostics distinguishes unsupported fields, URL, permission and successful binding',async()=>{
+test('automatic placement notice preserves text and uses available settings',async()=>{
   const h=create();await h.flush();const editor=h.doc.querySelector('textarea');editor.value='untouched';
-  assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'ok');assert.equal(editor.value,'untouched');
-  await h.changeProfiles([{...P.all()[0],editorAdapter:'rich-text'}]);assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'unsupported');
-  await h.navigate('https://github.com/a/b/issues/1');assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'wrong-url');
-  await h.changeProfiles([]);assert.equal((await h.message({type:'cc-inspect',id:'github'})).status,'no-access');
+  await h.changeProfiles([{...P.all()[0],containerSelector:'.missing'}]);await h.tick(510);
+  const notice=h.doc.querySelector('.cc-profile-notice');assert.ok(notice);assert.match(notice.textContent,/предустановкой/);
+  assert.doesNotMatch(notice.textContent,/Выберите другой тип|containerSelector|anchorSelector|Проверить профиль/);
+  assert.equal(editor.value,'untouched');
 });
 test('profile changes reposition active editor without changing text',async()=>{
   const h=create();await h.flush();const editor=h.doc.querySelector('textarea');editor.value='Draft';

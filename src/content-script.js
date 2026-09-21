@@ -105,14 +105,7 @@
     if (message.type === "cc-ping") { respond({ ok: true }); return; }
     if (message.type === "cc-reload") { reload().then(() => respond({ ok: true })); return true; }
     if (message.type === "cc-stop") { ++loadId; profiles = []; profile = null; signature = ""; clearUI(); respond({ ok: true }); return; }
-    if (message.type === "cc-inspect") {
-      const p = profiles.find((candidate) => candidate.id === message.id);
-      if (!p) { respond({ status: "no-access" }); return; }
-      if (!P.matches(p, location.href)) { respond({ status: "wrong-url" }); return; }
-      const result = E.inspect(document, p, A);
-      respond({ status: result.status, detail: result.detail, count: result.items.length,
-        valid: result.items.filter((i) => !i.error).length });
-    }
+
   });
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "sync" && changes.ccLabels || area === "local" && changes[P.KEY]) reload();

@@ -56,18 +56,6 @@ async function handle(message, sender) {
       return { ok: true };
     });
   }
-  if (message.type === "cc-check") {
-    const p = P.all(await data()).find((item) => item.id === message.id);
-    if (!p || !p.enabled) return { ok: true, status: "disabled" };
-    if (!(await allowed([p])).length) return { ok: true, status: "no-access" };
-    const tab = message.tabId ? await chrome.tabs.get(message.tabId) : (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-    if (!tab) return { ok: true, status: "no-tab" };
-    if (!P.matches(p, tab.url)) return { ok: true, status: "wrong-url" };
-    try {
-      await ensureTab(tab);
-      return { ok: true, ...await chrome.tabs.sendMessage(tab.id, { type: "cc-inspect", id: p.id }) };
-    } catch { return { ok: true, status: "no-connection" }; }
-  }
   throw new Error("Неизвестная команда.");
 }
 chrome.runtime.onMessage.addListener((message, sender, respond) => {

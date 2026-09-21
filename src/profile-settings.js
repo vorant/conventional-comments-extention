@@ -2,101 +2,112 @@
   "use strict";
   const P = globalThis.CCProfiles;
   const $ = (id) => document.getElementById(id);
-  const fields = ["name", "origin", "editorSelector", "containerSelector", "anchorSelector", "placement", "editorAdapter", "anchorMode"];
+  const fields = ["origin", "editorSelector", "placement", "paths"];
   const params = new URLSearchParams(location.search);
-  let profiles = [], selected = null, busy = false;
-  function status(text, error = false) { $("profile-status").textContent = text; $("profile-status").setAttribute("data-error", String(error)); }
+  const states = new Map();
+  let selected;
+  const key = (p) => JSON.stringify(fields.map((field) => p[field]));
+  const draft = (p) => ({ ...p, paths: p.paths.join("\n") });
   async function send(message) {
     const result = await chrome.runtime.sendMessage(message);
     if (!result?.ok) throw new Error(result?.error || "Нет связи с расширением. Перезагрузите его.");
-    return result;
   }
-  function readForm() {
-    const p = { ...selected };
-    for (const field of fields) p[field] = $("profile-" + field).value;
-    p.paths = $("profile-paths").value.split("\n").map((s) => s.trim()).filter(Boolean);
-    p.enabled = $("profile-enabled").checked;
-    return P.validate(p, profiles, document);
+  function valid(state) {
+    return P.validate({ ...state.draft, paths: state.draft.paths.split("\n").map((s) => s.trim()).filter(Boolean) }, [], document);
   }
-  async function access() {
-    const id = selected.id, origin = selected.origin;
+  function confirmed(state) {
+    try { return !state.pending && !state.error && key(valid(state)) === state.saved; } catch { return false; }
+  }
+  function show(state) {
+    if (selected !== state) return;
+    $("profile-status").textContent = state.status;
+    $("profile-status").setAttribute("data-error", String(state.error));
+    $("profile-connect").disabled = !confirmed(state);
+    if (!confirmed(state)) $("profile-access").textContent = "Доступ можно разрешить после сохранения корректных настроек.";
+    else access(state);
+  }
+  async function access(state) {
+    const version = state.version, origin = valid(state).origin;
     let granted = false;
-    try { granted = await chrome.permissions.contains({ origins: [P.originPattern(origin)] }); } catch { /* Unsaved address. */ }
-    if (selected.id !== id || selected.origin !== origin) return;
-    $("profile-access").textContent = granted ? "Доступ к сайту разрешён." : "Нет доступа. Сохраните профиль и разрешите доступ к сайту.";
+    try { granted = await chrome.permissions.contains({ origins: [P.originPattern(origin)] }); } catch { /* No permission. */ }
+    if (selected !== state || version !== state.version || !confirmed(state)) return;
+    $("profile-access").textContent = granted ? "Доступ к сайту разрешён." : "Нет доступа. Разрешите доступ к сайту.";
   }
-  function render(p) {
-    selected = { ...p };
-    for (const field of fields) $("profile-" + field).value = p[field];
-    $("profile-paths").value = p.paths.join("\n"); $("profile-enabled").checked = p.enabled;
-    $("profile-list").value = p.id;
-    $("profile-reset").disabled = !p.builtin;
-    $("profile-delete").disabled = p.builtin || !profiles.some((item) => item.id === p.id);
-    $("profile-warning").textContent = [p.id, p.templateId].some((id) => ["gitlab", "bitbucket"].includes(id)) ? "Предварительный профиль: проверьте вручную на вашем сайте. Для GitLab выберите Markdown-режим. Корпоративная версия может потребовать других селекторов." : "";
-    access();
+  function render(state) {
+    selected = state;
+    for (const field of fields) $("profile-" + field).value = state.draft[field];
+    $("profile-list").value = state.draft.id;
+    $("profile-warning").textContent = state.draft.id !== "github" ? "Предварительный профиль: проверьте вручную на вашем сайте. Для GitLab выберите Markdown-режим. Тип редактора и размещение определяются предустановкой." : "";
+    show(state);
   }
-  async function load(id) {
-    const stored = await chrome.storage.local.get(P.KEY);
-    profiles = P.all(stored[P.KEY]);
-    $("profile-list").replaceChildren();
-    for (const p of profiles) { const option = document.createElement("option"); option.value = p.id; option.textContent = p.name; $("profile-list").append(option); }
-    render(profiles.find((p) => p.id === id) || profiles[0]);
+  function write(state, profile, reset = false) {
+    const version = ++state.version;
+    state.last = key(profile);
+    state.pending = true; state.error = false; state.status = "Сохранение…";
+    show(state);
+    // Send immediately: the worker owns the queue even if the popup closes.
+    send(reset ? { type: "cc-remove", id: profile.id } : { type: "cc-save", profile }).then(() => {
+      if (version !== state.version) return;
+      state.saved = key(profile); state.pending = false; state.status = reset ? "Встроенные настройки восстановлены." : "Сохранено";
+      show(state);
+    }, (error) => {
+      if (version !== state.version) return;
+      state.pending = false; state.last = null; state.error = true;
+      state.status = `${error.message} Измените поле, чтобы повторить сохранение.`;
+      show(state);
+    });
   }
-  async function run(action) {
-    if (busy) return;
-    busy = true;
-    try { await action(); } catch (error) { status(error.message, true); } finally { busy = false; }
+  function changed() {
+    const state = selected;
+    if (!state) return;
+    for (const field of fields) state.draft[field] = $("profile-" + field).value;
+    let profile;
+    try { profile = valid(state); }
+    catch (error) {
+      ++state.version; state.last = null; state.pending = false; state.error = true; state.status = error.message;
+      show(state); return;
+    }
+    if (key(profile) === state.last) return;
+    write(state, profile);
   }
-  $("profile-list").addEventListener("change", () => { if (!busy) { render(profiles.find((p) => p.id === $("profile-list").value)); status(""); } });
-  $("profile-new").addEventListener("click", () => {
-    if (busy) return;
-    const template = P.defaults.find((p) => p.id === $("profile-template").value);
-    render({ ...(template || P.defaults[0]), id: crypto.randomUUID(), templateId: template?.id || "manual", builtin: false,
-      name: "Мой сайт", origin: "", paths: template ? [...template.paths] : ["/*"],
-      ...(template ? {} : { editorSelector: "textarea", containerSelector: "", anchorSelector: "", anchorMode: "editor", editorAdapter: "textarea" }) });
-    status("Укажите адрес сайта и сохраните профиль.");
+  for (const field of fields) for (const event of ["input", "change"]) $("profile-" + field).addEventListener(event, changed);
+  $("profile-form").addEventListener("submit", (event) => event.preventDefault());
+  $("profile-list").addEventListener("change", () => render(states.get($("profile-list").value)));
+  $("profile-reset").addEventListener("click", () => {
+    if (!selected) return;
+    const profile = P.defaults.find((p) => p.id === selected.draft.id);
+    selected.draft = draft(profile);
+    write(selected, profile, true);
+    render(selected);
   });
-  $("profile-form").addEventListener("submit", (event) => {
-    event.preventDefault();
-    run(async () => { const p = readForm(); await send({ type: "cc-save", profile: p }); await load(p.id); status("Профиль сохранён. Откройте поле комментария и нажмите «Проверить профиль»."); });
-  });
-  $("profile-reset").addEventListener("click", () => run(async () => {
-    const id = selected.id; await send({ type: "cc-remove", id }); await load(id); status("Встроенные настройки восстановлены.");
-  }));
-  $("profile-delete").addEventListener("click", () => run(async () => {
-    await send({ type: "cc-remove", id: selected.id }); await load(); status("Профиль удалён.");
-  }));
   $("profile-connect").addEventListener("click", () => {
-    if (busy) return;
+    const state = selected;
+    if (!state) return;
+    // Also check actual field values, so a stale address can never request access.
+    if (fields.some((field) => $("profile-" + field).value !== state.draft[field]) || !confirmed(state)) return;
+    const version = state.version;
     try {
-      const p = profiles.find((item) => item.id === selected.id);
-      if (!p || JSON.stringify(readForm()) !== JSON.stringify(p)) throw new Error("Сначала сохраните изменения профиля.");
-      // Must be invoked synchronously from the click, before any await.
-      const request = chrome.permissions.request({ origins: [P.originPattern(p.origin)] });
-      run(async () => {
-        const granted = await request;
+      const request = chrome.permissions.request({ origins: [P.originPattern(valid(state).origin)] });
+      Promise.resolve(request).then(async (granted) => {
         if (granted) await send({ type: "cc-refresh" });
-        await access();
-        status(granted ? "Доступ разрешён. Можно проверить профиль." : "Доступ не предоставлен. Профиль сохранён, но не подключён.", !granted);
+        if (version !== state.version) return;
+        state.status = granted ? "Доступ разрешён." : "Доступ не предоставлен. Настройки сохранены.";
+        // Permission denial does not make the saved snapshot invalid.
+        show(state);
+      }).catch((error) => {
+        if (version !== state.version) return;
+        state.status = error.message; show(state);
       });
-    } catch (error) { status(error.message, true); }
+    } catch (error) { state.status = error.message; show(state); }
   });
-  $("profile-check").addEventListener("click", () => run(async () => {
-    const saved = profiles.find((p) => p.id === selected.id);
-    if (!saved || JSON.stringify(readForm()) !== JSON.stringify(saved)) throw new Error("Сначала сохраните изменения профиля.");
-    const result = await send({ type: "cc-check", id: selected.id, tabId: Number(params.get("tab")) || undefined });
-    const messages = {
-      ok: `Проверка селекторов успешна: найдено редакторов ${result.count}, подходящих мест ${result.valid}.`,
-      "no-editor": "Редактор не найден. Откройте поле комментария и повторите проверку. Если оно уже открыто, проверьте CSS-селектор редактора.",
-      "no-access": "Нет доступа к сайту. Нажмите «Разрешить доступ к сайту».",
-      "wrong-url": "Адрес активной вкладки не соответствует профилю. Откройте подходящую страницу.",
-      "no-tab": "Нет активной вкладки для проверки.",
-      "no-connection": "Нет связи с вкладкой. Обновите страницу и повторите проверку.",
-      disabled: "Профиль отключён. Включите его и сохраните.",
-      unsupported: "Найденный редактор не поддерживается выбранным типом. Проверьте настройку типа редактора."
-    };
-    status(messages[result.status] || result.detail || "Не удалось проверить профиль.", result.status !== "ok");
-  }));
+  async function load() {
+    const stored = await chrome.storage.local.get(P.KEY);
+    for (const p of P.all(stored[P.KEY])) {
+      states.set(p.id, { draft: draft(p), saved: key(p), last: key(p), version: 0, pending: false, error: false, status: "" });
+      const option = document.createElement("option"); option.value = p.id; option.textContent = p.name; $("profile-list").append(option);
+    }
+    render(states.get(params.get("profile")) || states.get("github"));
+  }
   if (params.has("profile")) $("site-settings").open = true;
-  load(params.get("profile")).catch((error) => status(error.message, true));
+  load().catch((error) => { $("profile-status").textContent = error.message; $("profile-status").setAttribute("data-error", "true"); });
 })();
