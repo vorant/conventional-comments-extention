@@ -31,6 +31,28 @@ GitLab и Bitbucket требуют ручной проверки на вашем
 
 Над стандартным полем комментария должна появиться панель Conventional Comments labels.
 
+## Команды разработки
+
+Команды запускаются из корня проекта. Нужны `make`, Node.js с npm и установленный CLI `openspec`; для упаковки также нужна утилита `zip`. Установка npm-зависимостей не требуется.
+
+```bash
+make                 # Справка по командам
+make test            # npm test
+make spec-check      # openspec validate --specs --strict
+make check           # Обе проверки
+make changes         # Список активных OpenSpec changes
+make specs           # Список основных спецификаций
+make change-check CHANGE=<имя-change>
+make change-instructions CHANGE=<имя-change>
+make package         # ZIP расширения в dist/
+```
+
+### Перенос на другой компьютер
+
+Запустите `make package`. Архив `dist/conventional-comments-<версия>.zip` содержит `manifest.json`, папку `src` (включая иконки, шрифт и его лицензию) и README. Версия берётся из `manifest.json`. Тесты, OpenSpec и служебные файлы проекта в архив не включаются. Упаковка не запускает проверки; перед передачей архива выполните `make check`.
+
+На другом компьютере распакуйте ZIP в отдельную постоянную папку. Откройте `chrome://extensions`, включите Developer mode, нажмите Load unpacked и выберите папку с распакованным `manifest.json`. Node.js, npm и OpenSpec для установки расширения не нужны. Папку сохраняйте, пока пользуетесь расширением. Архив содержит только файлы расширения; настройки браузера в него не входят.
+
 ## Настройки labels
 
 Нажмите иконку расширения в Chrome, чтобы открыть popup настроек. В popup можно:
