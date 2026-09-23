@@ -36,7 +36,7 @@ test("manifest declares GitHub Pull Request content script and popup settings", 
     default_icon: expectedIcons
   });
   assert.deepEqual(manifest.content_scripts[0].matches, ["https://github.com/*"]);
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/panel-styles.js", "src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["src/content-style.css"]);
 
   for (const iconPath of Object.values(expectedIcons)) {

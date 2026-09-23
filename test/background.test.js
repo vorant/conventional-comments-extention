@@ -66,3 +66,33 @@ test('registration failure is reported rather than claiming connection',async()=
   const h=setup();await flush();h.granted.add('https://gitlab.com/*');h.failRegistration();
   const response=await h.send({type:'cc-save',profile:P.all()[1]});assert.equal(response.ok,false);assert.match(response.error,/registration/);
 });
+
+test('worker serializes partial CSS, profile saves and resets against latest stored state',async()=>{
+  const h=setup({ccLabels:['note'],ccTheme:'dark'});await flush();
+  const stale=P.all()[0];
+  const responses=await Promise.all([
+    h.send({type:'cc-save-css',id:'github',css:'first'}),
+    h.send({type:'cc-save',profile:{...stale,placement:'after'}}),
+    h.send({type:'cc-save-css',id:'gitlab',css:'lab'}),
+    h.send({type:'cc-reset-css',id:'github'}),
+    h.send({type:'cc-save-css',id:'github',css:''})
+  ]);
+  assert.ok(responses.every(r=>r.ok));
+  assert.equal(P.all(h.getStore()[P.KEY])[0].panelCss,'');
+  assert.equal(P.all(h.getStore()[P.KEY])[0].placement,'after');
+  assert.equal(P.all(h.getStore()[P.KEY])[1].panelCss,'lab');
+  await h.send({type:'cc-remove',id:'github'});
+  assert.equal(P.all(h.getStore()[P.KEY])[0].panelCss,P.standardCss);
+  assert.equal(P.all(h.getStore()[P.KEY])[1].panelCss,'lab');
+  assert.deepEqual(h.getStore().ccLabels,['note']);assert.equal(h.getStore().ccTheme,'dark');
+  assert.ok(h.calls.some(([t,id,m])=>t==='message'&&id===1&&m.type==='cc-reload'));
+  const sender={tab:{id:1},url:h.tabs[0].url};
+  for(const type of ['cc-save-css','cc-reset-css']) assert.equal((await h.send({type,id:'github',css:'blocked'},sender)).ok,false);
+  for(const m of [{type:'cc-save-css',id:'github',css:12},{type:'cc-reset-css',id:'bad'}]) assert.equal((await h.send(m)).ok,false);
+});
+test('existing registrations upgrade dependency resources even with identical matches',async()=>{
+  const h=setup({},[{id:'cc-sites',matches:['https://gitlab.com/*'],js:['src/site-profiles.js']}]);
+  h.granted.add('https://gitlab.com/*');await flush();
+  assert.equal(h.getRegistered()[0].js[0],'src/panel-styles.js');
+  assert.equal(h.calls.find(([t])=>t==='inject')[1].files[0],'src/panel-styles.js');
+});

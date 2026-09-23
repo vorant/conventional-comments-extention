@@ -7,8 +7,19 @@
   const panels = new Map(), failures = new Map(), shown = new Set(), notices = new Map();
   let profiles = [], labels = DEFAULT_LABELS, signature = "", profile = null, scanTimer, retryTimer, loadId = 0;
   let lastHref = location.href;
-  let noticeHost;
+  let noticeHost, panelStyle;
+  function updateStyle() {
+    if (!panelStyle?.isConnected) {
+      panelStyle = document.createElement("style");
+      panelStyle.setAttribute("data-cc-owned", "true");
+      panelStyle.setAttribute("data-cc-panel-style", "true");
+      (document.head || document.body).append(panelStyle);
+    }
+    const css = typeof profile.panelCss === "string" ? profile.panelCss : P.standardCss;
+    if (panelStyle.textContent !== css) panelStyle.textContent = css;
+  }
   function clearUI() {
+    panelStyle?.remove(); panelStyle = null;
     for (const [editor, value] of panels) { value.panel.remove(); editor.removeAttribute("data-cc-label-panel"); }
     panels.clear(); failures.clear();
     for (const notice of notices.values()) notice.remove();
@@ -18,7 +29,7 @@
   }
   function notice(key, detail) {
     const token = `${signature}:${key}`;
-    if (shown.has(token)) return;
+    if (shown.has(token) || notices.has(key)) return;
     shown.add(token);
     const box = document.createElement("div");
     box.className = "cc-profile-notice"; box.setAttribute("data-cc-owned", "true"); box.setAttribute("role", "status");
@@ -52,9 +63,12 @@
   function scan() {
     scanTimer = null;
     const selected = P.select(profiles, location.href);
-    const nextSignature = selected ? JSON.stringify(selected) : "";
-    if (nextSignature !== signature) { clearUI(); profile = selected; signature = nextSignature; }
+    const nextSignature = selected ? JSON.stringify({ ...selected, panelCss: undefined, revision: undefined }) : "";
+    if (profile?.revision !== selected?.revision) shown.clear();
+    if (nextSignature !== signature) { clearUI(); signature = nextSignature; }
+    profile = selected;
     if (!profile || !labels.length) { clearUI(); return; }
+    updateStyle();
     const result = E.inspect(document, profile, A), live = new Set(result.items.map((i) => i.editor));
     const errorKeys = new Set();
     for (const [editor, value] of panels) {

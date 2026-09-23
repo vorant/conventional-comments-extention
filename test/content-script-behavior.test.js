@@ -98,3 +98,44 @@ test('restoration clears visible errors and a new settings revision may notify a
   await h.changeProfiles([{...p,anchorSelector:'',revision:1}]);assert.equal(h.doc.querySelector('.cc-profile-notice'),null);assert.ok(h.doc.querySelector('.cc-label-panel'));
   await h.changeProfiles([{...p,revision:2}]);await h.tick(510);assert.ok(h.doc.querySelector('.cc-profile-notice'));
 });
+
+test('one style replaces defaults in place for all panels without modifying drafts',async()=>{
+  const h=create({html:'<form><textarea name="comment[body]"></textarea></form><form><textarea name="comment[body]"></textarea></form>'});await h.flush();
+  const styles=()=>h.doc.querySelectorAll('[data-cc-panel-style]');
+  const style=styles()[0],panels=h.doc.querySelectorAll('.cc-label-panel'),editor=h.doc.querySelector('textarea');
+  editor.value='Draft';assert.equal(style.textContent,P.standardCss);
+  for(const css of ['.cc-label-button { color: red; }','','</style><script>not HTML</script>']){
+    await h.changeProfiles([{...P.all()[0],panelCss:css,revision:1}]);
+    assert.equal(styles().length,1);assert.equal(styles()[0],style);
+    assert.equal(style.textContent,css);assert.equal(style.children.length,0);
+    assert.deepEqual(h.doc.querySelectorAll('.cc-label-panel'),panels);
+    assert.equal(editor.value,'Draft');
+    h.mutate();await h.tick();assert.equal(styles()[0],style);
+  }
+  await h.changeProfiles(P.all());assert.equal(style.textContent,P.standardCss);
+  style.remove();h.mutate();await h.tick();assert.equal(styles().length,1);
+});
+test('styles follow SPA, selected profile and stop/reload permission lifecycle',async()=>{
+  const profiles=P.all().map(p=>({...p,origin:'https://github.com',paths:p.id==='github'?['/a/*']:['/b/*'],editorSelector:'textarea',containerSelector:'form',panelCss:p.id}));
+  const h=create({profiles,href:'https://github.com/a/1'});await h.flush();
+  const css=()=>h.doc.querySelector('[data-cc-panel-style]');
+  assert.equal(css().textContent,'github');
+  await h.navigate('https://github.com/b/1');assert.equal(css().textContent,'gitlab');
+  assert.equal(h.doc.querySelectorAll('[data-cc-panel-style]').length,1);
+  await h.navigate('https://github.com/c/1');assert.equal(css(),null);
+  await h.navigate('https://github.com/a/1');assert.equal(css().textContent,'github');
+  await h.message({type:'cc-stop'});h.mutate();await h.tick();assert.equal(css(),null);
+  await h.changeProfiles(profiles);assert.equal(css().textContent,'github');
+  await h.changeProfiles([]);assert.equal(css(),null);
+});
+test('CSS revisions preserve existing diagnostics without leaving duplicate notices',async()=>{
+  const p={...P.all()[0],containerSelector:'.missing'};
+  const h=create({profiles:[p]});await h.flush();await h.tick(510);
+  for(let revision=1;revision<=3;revision++){
+    await h.changeProfiles([{...p,revision,panelCss:'/* '+revision+' */'}]);
+    await h.tick(510);assert.equal(h.doc.querySelectorAll('.cc-profile-notice').length,1);
+  }
+  h.doc.querySelector('.cc-profile-notice').querySelectorAll('button')[1].click();
+  await h.changeProfiles([{...p,revision:4}]);await h.tick(510);
+  assert.equal(h.doc.querySelectorAll('.cc-profile-notice').length,1);
+});

@@ -1,7 +1,7 @@
 "use strict";
-importScripts("site-profiles.js");
+importScripts("panel-styles.js", "site-profiles.js");
 const P = globalThis.CCProfiles;
-const FILES = ["src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"];
+const FILES = ["src/panel-styles.js", "src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"];
 const CSS = ["src/content-style.css"];
 let queue = Promise.resolve();
 const serial = (action) => { const result = queue.then(action); queue = result.catch(() => {}); return result; };
@@ -24,7 +24,8 @@ async function reconcile() {
   const patterns = [...new Set(profiles.filter((p) => p.origin !== "https://github.com").map((p) => P.originPattern(p.origin)))].sort();
   const current = await chrome.scripting.getRegisteredContentScripts();
   const own = current.filter((s) => s.id === "cc-sites");
-  if (JSON.stringify(own[0]?.matches || []) !== JSON.stringify(patterns)) {
+  if (JSON.stringify(own[0]?.matches || []) !== JSON.stringify(patterns) ||
+      (own.length && JSON.stringify(own[0].js) !== JSON.stringify(FILES))) {
     if (own.length) await chrome.scripting.unregisterContentScripts({ ids: ["cc-sites"] });
     if (patterns.length) await chrome.scripting.registerContentScripts([{ id: "cc-sites", matches: patterns, excludeMatches: ["https://github.com/*"], js: FILES, css: CSS, runAt: "document_idle", persistAcrossSessions: true }]);
   }
@@ -47,10 +48,12 @@ async function handle(message, sender) {
   }
   if (!extensionPage(sender)) throw new Error("Действие доступно только в настройках расширения.");
   if (message.type === "cc-refresh") { await serial(reconcile); return { ok: true }; }
-  if (message.type === "cc-save" || message.type === "cc-remove") {
+  if (["cc-save", "cc-remove", "cc-save-css", "cc-reset-css"].includes(message.type)) {
     return serial(async () => {
       const old = await data();
-      const next = message.type === "cc-save" ? P.save(old, P.validate(message.profile, P.all(old))) : P.remove(old, message.id);
+      const next = message.type === "cc-save" ? P.save(old, P.validate(message.profile, P.all(old)))
+        : message.type === "cc-remove" ? P.remove(old, message.id)
+        : P.saveCss(old, message.id, message.css, message.type === "cc-reset-css");
       await chrome.storage.local.set({ [P.KEY]: next });
       await reconcile();
       return { ok: true };

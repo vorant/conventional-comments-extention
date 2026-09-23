@@ -1,5 +1,6 @@
 (function (root) {
   "use strict";
+  const standardCss = typeof module !== "undefined" ? require("./panel-styles") : root.CCPanelStyles;
   const KEY = "ccSiteProfiles";
   const defaults = [
     { id: "github", name: "GitHub", origin: "https://github.com", paths: ["/*/*/pull/*"], enabled: true,
@@ -32,6 +33,7 @@
           profile[field] = validate({ ...profile, [field]: data.overrides[base.id][field] }, [], root.document)[field];
         } catch { /* An obsolete field falls back independently to its default. */ }
       }
+      profile.panelCss = typeof data.overrides[base.id]?.panelCss === "string" ? data.overrides[base.id].panelCss : standardCss;
       return profile;
     });
   }
@@ -96,7 +98,19 @@
     const data = config(value), valid = validate(p, [], root.document);
     const item = Object.fromEntries(editable.map((field) => [field, valid[field]]));
     data.revision = (data.revision || 0) + 1;
+    if (typeof data.overrides[p.id]?.panelCss === "string") item.panelCss = data.overrides[p.id].panelCss;
     data.overrides[p.id] = item;
+    return data;
+  }
+  function saveCss(value, id, css, reset = false) {
+    if (!defaults.some((p) => p.id === id)) throw new Error("Неизвестный встроенный профиль.");
+    if (!reset && typeof css !== "string") throw new Error("CSS должен быть строкой.");
+    const data = config(value);
+    const item = { ...data.overrides[id] };
+    if (reset) delete item.panelCss;
+    else item.panelCss = css;
+    data.overrides[id] = item;
+    data.revision = (data.revision || 0) + 1;
     return data;
   }
   function remove(value, id) {
@@ -106,7 +120,7 @@
     delete data.overrides[id];
     return data;
   }
-  const api = { KEY, defaults, config, all, pathMatches, overlaps, matches, select, originPattern, validate, save, remove };
+  const api = { KEY, standardCss, saveCss, defaults, config, all, pathMatches, overlaps, matches, select, originPattern, validate, save, remove };
   root.CCProfiles = api;
   if (typeof module !== "undefined") module.exports = api;
 })(globalThis);

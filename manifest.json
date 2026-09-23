@@ -29,6 +29,7 @@
         "https://github.com/*"
       ],
       "js": [
+        "src/panel-styles.js",
         "src/site-profiles.js",
         "src/editor-adapters.js",
         "src/panel-engine.js",

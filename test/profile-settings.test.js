@@ -4,7 +4,7 @@ const flush=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
 function setup({delayed=false,search='',initialConfig,theme}={}){
   const doc=parse(new Document(),html);let config=initialConfig,permission=false;let themeListener;const calls=[],pending=[];
   const chrome={storage:{onChanged:{addListener(fn){themeListener=fn;}},sync:{get(key,cb){cb({ccTheme:theme});}},local:{async get(){return {[P.KEY]:config};}}},permissions:{async contains(){return permission;},request(o){calls.push(['request',o]);return Promise.resolve(permission);}},
-    runtime:{sendMessage(m){calls.push(['message',m]);return new Promise(resolve=>{const complete=(ok=true)=>{if(ok){if(m.type==='cc-save')config=P.save(config,m.profile);if(m.type==='cc-remove')config=P.remove(config,m.id);}resolve({ok,error:'Ошибка записи'});};if(delayed)pending.push(complete);else complete();});}}};
+    runtime:{sendMessage(m){calls.push(['message',m]);return new Promise(resolve=>{const complete=(ok=true)=>{if(ok){if(m.type==='cc-save')config=P.save(config,m.profile);if(m.type==='cc-remove')config=P.remove(config,m.id);if(m.type==='cc-save-css'||m.type==='cc-reset-css')config=P.saveCss(config,m.id,m.css,m.type==='cc-reset-css');}resolve({ok,error:'Ошибка записи'});};if(delayed)pending.push(complete);else complete();});}}};
   vm.runInNewContext(fs.readFileSync(`${__dirname}/../src/theme.js`,'utf8'),{document:doc,chrome});
   vm.runInNewContext(js,{document:doc,CCProfiles:P,chrome,URLSearchParams,location:{search}});
   const el=(id)=>doc.getElementById(id);
@@ -83,4 +83,86 @@ test('options shares default and saved theme, live changes preserve invalid draf
   dark.changeTheme('light');assert.equal(dark.doc.body.getAttribute('data-theme'),'light');
   assert.equal(dark.el('profile-origin').value,'invalid draft');assert.equal(dark.el('profile-status').textContent,status);
   assert.equal(dark.calls.length,0);
+});
+
+test('CSS editor shows actual defaults and accessible controls',async()=>{
+  const h=setup();await flush();
+  assert.equal(h.el('profile-panelCss').value,P.standardCss);
+  assert.equal(h.el('profile-panelCss').getAttribute('spellcheck'),'false');
+  assert.equal(h.doc.querySelector('label[for="profile-panelCss"]').textContent,'CSS панели и кнопок');
+  assert.equal(h.el('profile-css-reset').textContent,'Восстановить');
+  assert.equal(h.el('profile-reset').textContent,'Восстановить профиль');
+});
+test('CSS autosaves exact incomplete and empty text independently and survives reopening',async()=>{
+  const h=setup();await flush();
+  for(const css of ['  /* draft */\n.cc-label-button { color:', '']){
+    h.edit('panelCss',css);h.edit('panelCss',css,'change');await flush();
+    assert.equal(h.getConfig().overrides.github.panelCss,css);
+    const reopened=setup({initialConfig:h.getConfig()});await flush();
+    assert.equal(reopened.el('profile-panelCss').value,css);
+  }
+  assert.equal(h.calls.filter(([,m])=>m.type==='cc-save-css').length,2);
+  h.edit('list','gitlab','change');assert.equal(h.el('profile-panelCss').value,P.standardCss);
+  h.edit('panelCss','gitlab');await flush();h.edit('list','github','change');
+  assert.equal(h.el('profile-panelCss').value,'');
+});
+test('rapid CSS edits and switching keep drafts, status and original text',async()=>{
+  const h=setup({delayed:true});await flush();
+  h.edit('panelCss','first');h.edit('panelCss','  second\n');
+  h.edit('list','gitlab','change');h.edit('panelCss','lab');
+  h.pending.shift()();h.pending.shift()();await flush();
+  assert.equal(h.el('profile-panelCss').value,'lab');
+  assert.equal(h.el('profile-css-status').textContent,'Сохранение…');
+  h.pending.shift()();await flush();h.edit('list','github','change');
+  assert.equal(h.el('profile-panelCss').value,'  second\n');
+  assert.equal(h.el('profile-css-status').textContent,'Сохранено');
+});
+test('CSS reset works with invalid address and preserves other pending drafts',async()=>{
+  const h=setup({delayed:true});await flush();
+  h.edit('placement','after');h.edit('origin','bad address');h.edit('panelCss','old');
+  h.el('profile-css-reset').click();
+  assert.equal(h.el('profile-origin').value,'bad address');
+  assert.equal(h.el('profile-panelCss').value,P.standardCss);
+  h.pending.shift()();h.pending.shift()();await flush();
+  assert.equal(h.el('profile-css-status').textContent,'Сохранение…');
+  h.pending.shift()();await flush();
+  assert.equal(P.all(h.getConfig())[0].placement,'after');
+  assert.equal(P.all(h.getConfig())[0].panelCss,P.standardCss);
+  assert.equal(h.el('profile-status').getAttribute('data-error'),'true');
+  assert.equal(h.el('profile-origin').value,'bad address');
+});
+test('full reset supersedes both groups and newer edits supersede reset responses',async()=>{
+  const h=setup({delayed:true});await flush();
+  h.edit('placement','after');h.edit('panelCss','old');h.el('profile-reset').click();
+  h.pending.shift()();h.pending.shift()();await flush();
+  assert.equal(h.el('profile-css-status').textContent,'Сохранение…');
+  assert.equal(h.el('profile-panelCss').value,P.standardCss);
+  h.edit('panelCss','new');h.edit('placement','after');
+  h.pending.shift()();await flush();
+  assert.equal(h.el('profile-panelCss').value,'new');
+  assert.equal(h.el('profile-css-status').textContent,'Сохранение…');
+  h.pending.shift()();h.pending.shift()();await flush();
+  assert.equal(P.all(h.getConfig())[0].panelCss,'new');
+  assert.equal(P.all(h.getConfig())[0].placement,'after');
+});
+test('CSS reset and newer CSS ignore even out-of-order old acknowledgements',async()=>{
+  const h=setup({delayed:true});await flush();
+  h.edit('panelCss','old');h.el('profile-css-reset').click();h.edit('panelCss','new');
+  const [old,reset,newer]=h.pending;
+  newer();await flush();reset(false);old(false);await flush();
+  assert.equal(h.el('profile-panelCss').value,'new');
+  assert.equal(h.el('profile-css-status').textContent,'Сохранено');
+});
+test('CSS and full reset errors retain drafts, expose errors and allow retry',async()=>{
+  const h=setup({delayed:true});await flush();
+  h.edit('panelCss','broken {');h.pending.shift()(false);await flush();
+  assert.equal(h.el('profile-panelCss').value,'broken {');
+  assert.equal(h.el('profile-css-status').getAttribute('data-error'),'true');
+  h.edit('panelCss','broken {','change');h.pending.shift()();await flush();
+  assert.equal(h.el('profile-css-status').textContent,'Сохранено');
+  h.el('profile-reset').click();h.pending.shift()(false);await flush();
+  assert.equal(h.el('profile-status').getAttribute('data-error'),'true');
+  assert.equal(h.el('profile-css-status').getAttribute('data-error'),'true');
+  h.el('profile-css-reset').click();h.pending.shift()();await flush();
+  assert.equal(P.all(h.getConfig())[0].panelCss,P.standardCss);
 });

@@ -38,6 +38,8 @@
     for (const field of fields) $("profile-" + field).value = state.draft[field];
     $("profile-list").value = state.draft.id;
     $("profile-warning").textContent = state.draft.id !== "github" ? "Предварительный профиль: проверьте вручную на вашем сайте. Для GitLab выберите Markdown-режим. Тип редактора и размещение определяются предустановкой." : "";
+    $("profile-panelCss").value = state.css.draft;
+    showCss(state);
     show(state);
   }
   function write(state, profile, reset = false) {
@@ -46,7 +48,8 @@
     state.pending = true; state.error = false; state.status = "Сохранение…";
     show(state);
     // Send immediately: the worker owns the queue even if the settings page closes.
-    send(reset ? { type: "cc-remove", id: profile.id } : { type: "cc-save", profile }).then(() => {
+    const request = send(reset ? { type: "cc-remove", id: profile.id } : { type: "cc-save", profile });
+    request.then(() => {
       if (version !== state.version) return;
       state.saved = key(profile); state.pending = false; state.status = reset ? "Встроенные настройки восстановлены." : "Сохранено";
       show(state);
@@ -56,7 +59,50 @@
       state.status = `${error.message} Измените поле, чтобы повторить сохранение.`;
       show(state);
     });
+    return request;
   }
+  function showCss(state) {
+    if (selected !== state) return;
+    $("profile-css-status").textContent = state.css.status;
+    $("profile-css-status").setAttribute("data-error", String(state.css.error));
+  }
+  function beginCss(state, value) {
+    state.css.draft = value;
+    state.css.last = value;
+    state.css.error = false;
+    state.css.status = "Сохранение…";
+    const version = ++state.css.version;
+    showCss(state);
+    return version;
+  }
+  function finishCss(state, version, request, reset) {
+    request.then(() => {
+      if (state.css.version !== version) return;
+      state.css.status = reset ? "Стандартные стили восстановлены." : "Сохранено";
+      showCss(state);
+    }, (error) => {
+      if (state.css.version !== version) return;
+      state.css.last = null; state.css.error = true;
+      state.css.status = `${error.message} Измените CSS или повторите восстановление.`;
+      showCss(state);
+    });
+  }
+  function cssChanged() {
+    const state = selected;
+    if (!state) return;
+    const value = $("profile-panelCss").value;
+    if (value === state.css.last) return;
+    const version = beginCss(state, value);
+    finishCss(state, version, send({ type: "cc-save-css", id: state.draft.id, css: value }), false);
+  }
+  for (const event of ["input", "change"]) $("profile-panelCss").addEventListener(event, cssChanged);
+  $("profile-css-reset").addEventListener("click", () => {
+    const state = selected;
+    if (!state) return;
+    const version = beginCss(state, P.standardCss);
+    $("profile-panelCss").value = state.css.draft;
+    finishCss(state, version, send({ type: "cc-reset-css", id: state.draft.id }), true);
+  });
   function changed() {
     const state = selected;
     if (!state) return;
@@ -77,7 +123,8 @@
     if (!selected) return;
     const profile = P.defaults.find((p) => p.id === selected.draft.id);
     selected.draft = draft(profile);
-    write(selected, profile, true);
+    const version = beginCss(selected, P.standardCss);
+    finishCss(selected, version, write(selected, profile, true), true);
     render(selected);
   });
   $("profile-connect").addEventListener("click", () => {
@@ -103,7 +150,7 @@
   async function load() {
     const stored = await chrome.storage.local.get(P.KEY);
     for (const p of P.all(stored[P.KEY])) {
-      states.set(p.id, { draft: draft(p), saved: key(p), last: key(p), version: 0, pending: false, error: false, status: "" });
+      states.set(p.id, { css: { draft: p.panelCss, last: p.panelCss, version: 0, error: false, status: "" }, draft: draft(p), saved: key(p), last: key(p), version: 0, pending: false, error: false, status: "" });
       const option = document.createElement("option"); option.value = p.id; option.textContent = p.name; $("profile-list").append(option);
     }
     render(states.get(params.get("profile")) || states.get("github"));

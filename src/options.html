@@ -21,7 +21,15 @@
           <label>CSS-селектор редактора<input id="profile-editorSelector" required spellcheck="false"></label>
           <label>Положение панели<select id="profile-placement"><option value="before">Над редактором</option><option value="after">Под редактором</option></select></label>
           <p class="profile-help">Корректные изменения сохраняются автоматически.</p>
-          <div class="profile-actions"><button id="profile-reset" type="button">Восстановить</button></div>
+          <fieldset class="panel-styles">
+            <legend>Стили панели</legend>
+            <label for="profile-panelCss">CSS панели и кнопок</label>
+            <textarea id="profile-panelCss" rows="16" spellcheck="false" aria-describedby="profile-css-help"></textarea>
+            <p id="profile-css-help" class="profile-help">Полный CSS: .cc-label-panel — панель, .cc-label-button — кнопки. Изменения сохраняются автоматически. Пустое поле убирает собственное оформление. Браузер может игнорировать ошибочные и неподдерживаемые правила. Произвольные селекторы могут затронуть страницу сайта.</p>
+            <button id="profile-css-reset" type="button">Восстановить</button>
+            <p id="profile-css-status" role="status" aria-live="polite"></p>
+          </fieldset>
+          <div class="profile-actions"><button id="profile-reset" type="button">Восстановить профиль</button></div>
         </form>
         <div class="profile-actions"><button id="profile-connect" type="button" disabled>Разрешить доступ к сайту</button></div>
         <p id="profile-access" class="profile-help"></p>
@@ -29,6 +37,7 @@
       </section>
     </main>
     <script src="theme.js"></script>
+    <script src="panel-styles.js"></script>
     <script src="site-profiles.js"></script>
     <script src="profile-settings.js"></script>
   </body>

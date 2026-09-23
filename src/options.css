@@ -17,3 +17,7 @@ h1 { margin: 0 0 24px; font-size: 24px; }
 .site-settings { overflow-wrap: anywhere; }
 #profile-status[data-error="true"] { color: var(--cc-popup-danger); }
 .site-settings button:disabled { opacity: .5; cursor: default; }
+
+.panel-styles { min-width: 0; margin: 12px 0; padding: 12px; border: 1px solid var(--cc-popup-border); border-radius: 6px; }
+#profile-panelCss { box-sizing: border-box; width: 100%; resize: vertical; font-family: ui-monospace, monospace; line-height: 1.5; tab-size: 2; }
+#profile-css-status[data-error="true"] { color: var(--cc-popup-danger); }

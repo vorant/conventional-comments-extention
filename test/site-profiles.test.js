@@ -102,3 +102,30 @@ test('placement never inserts toolbar inside an editable rich-text subtree',()=>
 test('wildcard hostname is rejected rather than requesting unintended hosts',()=>{
   assert.throws(()=>P.validate({...P.defaults[0],origin:'https://*.example.com'},[]),/Адрес/);
 });
+
+test('panel CSS distinguishes absent, empty and invalid values without losing other overrides', () => {
+  const legacy = P.save(undefined, {...P.defaults[0], placement:'after'});
+  assert.equal(P.all(legacy)[0].panelCss, P.standardCss);
+  assert.equal(Object.hasOwn(legacy.overrides.github,'panelCss'),false);
+  for (const css of ['', '  /* source */\n.cc-label-button { color: red; }\n', '.unfinished {']) {
+    const stored = P.saveCss(legacy,'github',css);
+    assert.equal(P.all(JSON.parse(JSON.stringify(stored)))[0].panelCss,css);
+    assert.equal(P.all(stored)[1].panelCss,P.standardCss);
+    const saved = P.save(stored,{...P.all(stored)[0],panelCss:'stale',origin:'https://other.example'});
+    assert.equal(P.all(saved)[0].panelCss,css);
+    const reset = P.saveCss(saved,'github',undefined,true);
+    assert.equal(Object.hasOwn(reset.overrides.github,'panelCss'),false);
+    assert.equal(P.all(reset)[0].placement,'after');
+    assert.equal(P.all(reset)[0].origin,'https://other.example');
+    assert.equal(P.all(P.remove(stored,'github'))[0].panelCss,P.standardCss);
+  }
+  for (const panelCss of [null, 12, {}, []]) {
+    const stored = {...legacy,overrides:{github:{...legacy.overrides.github,panelCss}}};
+    assert.equal(P.all(stored)[0].panelCss,P.standardCss);
+    assert.equal(P.all(stored)[0].placement,'after');
+  }
+  assert.throws(()=>P.saveCss(legacy,'github',null));
+  assert.throws(()=>P.saveCss(legacy,'unknown',''));
+  const both = P.saveCss(P.saveCss(legacy,'github','one'),'gitlab','two');
+  assert.equal(P.all(P.saveCss(both,'github',null,true))[1].panelCss,'two');
+});
