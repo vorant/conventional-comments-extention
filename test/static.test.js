@@ -25,6 +25,8 @@ test("manifest declares GitHub Pull Request content script and popup settings", 
   };
 
   assert.equal(manifest.manifest_version, 3);
+  assert.deepEqual(manifest.options_ui, { page: "src/options.html", open_in_tab: true });
+  assert.ok(fs.existsSync(path.join(rootDir, manifest.options_ui.page)));
   assert.deepEqual(manifest.permissions, ["storage", "scripting", "activeTab"]);
   assert.deepEqual(manifest.optional_host_permissions, ["https://*/*", "http://*/*"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
@@ -70,7 +72,7 @@ test("popup and content script expose the same default Conventional Comments lab
 
 test("popup static assets are wired without external dependencies", () => {
   const popupHtml = readText("src/popup.html");
-  const popupCss = readText("src/popup.css");
+  const popupCss = readText("src/shared.css") + readText("src/popup.css");
   const fontPath = path.join(rootDir, "src/fonts/symbols-nerd-font.woff2");
   const fontLicensePath = path.join(rootDir, "src/fonts/NERD_FONTS_LICENSE");
 
@@ -106,4 +108,21 @@ test("README documents site profiles in Russian", () => {
   assert.doesNotMatch(readme, /Проверить профиль|создайте собственный профиль/);
   assert.match(readme, /предварительн/);
   assert.match(readme, /Локальная установка/);
+});
+
+test("options owns the profile form and both pages load shared theme assets", () => {
+  const popup = readText("src/popup.html");
+  const options = readText("src/options.html");
+  assert.doesNotMatch(popup, /profile-form|site-settings|profile-settings.js|site-profiles.js/);
+  assert.ok(popup.indexOf('id="theme-toggle"') < popup.indexOf('id="open-settings"'));
+  assert.match(popup, /id="open-settings"[^>]*aria-label="Настройки"[^>]*title="Настройки"/);
+  assert.match(options, /id="profile-form"/);
+  assert.doesNotMatch(options, /<details|theme-toggle|label-form/);
+  for (const html of [popup, options]) {
+    assert.match(html, /href="shared.css"/);
+    assert.match(html, /src="theme.js"/);
+    for (const [, asset] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+      assert.ok(fs.existsSync(path.join(rootDir, "src", asset)), asset);
+    }
+  }
 });

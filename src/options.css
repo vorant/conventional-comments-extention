@@ -1,0 +1,19 @@
+body { font-size: 14px; }
+.options { width: 100%; max-width: 680px; margin: 0 auto; padding: 24px 16px; }
+h1 { margin: 0 0 24px; font-size: 24px; }
+.site-settings label { display: grid; gap: 6px; }
+.site-settings select, .site-settings textarea {
+  width: 100%; min-width: 0; max-width: 100%; padding: 8px;
+  border: 1px solid var(--cc-popup-border); border-radius: 6px;
+  color: var(--cc-popup-fg); background: var(--cc-popup-input-bg); font: inherit;
+}
+.site-settings select:focus, .site-settings textarea:focus {
+  outline: 2px solid var(--cc-popup-focus); outline-offset: 1px;
+}
+.site-settings textarea { resize: vertical; }
+.profile-form { display: grid; gap: 14px; margin: 16px 0; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.profile-help { color: var(--cc-popup-muted); margin: 6px 0; }
+.site-settings { overflow-wrap: anywhere; }
+#profile-status[data-error="true"] { color: var(--cc-popup-danger); }
+.site-settings button:disabled { opacity: .5; cursor: default; }

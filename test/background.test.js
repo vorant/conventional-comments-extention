@@ -12,7 +12,7 @@ function setup(initial={}, registrations=[]){
     tabs:{async query(q){return q.active?[tabs[0]]:tabs;},async get(id){return tabs.find(t=>t.id===id);},async create(o){calls.push(['open',o]);},async sendMessage(id,m){calls.push(['message',id,m]);if(!injected.has(id))throw new Error('no receiver');return m.type==='cc-inspect'?{status:'ok',count:1,valid:1}:{ok:true};}}
   };
   vm.runInNewContext(source,{CCProfiles:P,importScripts(){},chrome,URL,console:{error(){}}});
-  const send=(m,sender={url:'chrome-extension://test/src/popup.html'})=>new Promise(resolve=>listeners[0](m,sender,resolve));
+  const send=(m,sender={url:'chrome-extension://test/src/options.html'})=>new Promise(resolve=>listeners[0](m,sender,resolve));
   return {send,events,calls,granted,tabs,getStore:()=>store,getRegistered:()=>registered,failRegistration(){failRegister=true;}};
 }
 test('startup retains GitHub access and registers only granted optional sites',async()=>{
@@ -53,11 +53,14 @@ test('unknown schema is never overwritten',async()=>{
   assert.equal((await h.send({type:'cc-save',profile:P.defaults[0]})).ok,false);
   assert.deepEqual(h.getStore(),initial);
 });
-test('page content cannot save profiles and settings links preserve source tab',async()=>{
+test('page content cannot save profiles and settings links open options with validated profile',async()=>{
   const h=setup();await flush();const sender={tab:{id:1,url:h.tabs[0].url},url:h.tabs[0].url};
   assert.equal((await h.send({type:'cc-save',profile:P.all()[0]},sender)).ok,false);
   await h.send({type:'cc-open-settings',id:'github'},sender);
-  assert.ok(h.calls.find(([t])=>t==='open')[1].url.endsWith('profile=github&tab=1'));
+  assert.ok(h.calls.find(([t])=>t==='open')[1].url.endsWith('src/options.html?profile=github'));
+  const count=h.calls.filter(([t])=>t==='open').length;
+  assert.equal((await h.send({type:'cc-open-settings',id:'unknown'})).ok,false);
+  assert.equal(h.calls.filter(([t])=>t==='open').length,count);
 });
 test('registration failure is reported rather than claiming connection',async()=>{
   const h=setup();await flush();h.granted.add('https://gitlab.com/*');h.failRegistration();

@@ -42,7 +42,7 @@ async function handle(message, sender) {
   if (message.type === "cc-open-settings") {
     const profiles = P.all(await data());
     if (!profiles.some((p) => p.id === message.id)) throw new Error("Профиль не найден.");
-    await chrome.tabs.create({ url: chrome.runtime.getURL(`src/popup.html?profile=${encodeURIComponent(message.id)}&tab=${sender.tab?.id || ""}`) });
+    await chrome.tabs.create({ url: chrome.runtime.getURL(`src/options.html?profile=${encodeURIComponent(message.id)}`) });
     return { ok: true };
   }
   if (!extensionPage(sender)) throw new Error("Действие доступно только в настройках расширения.");

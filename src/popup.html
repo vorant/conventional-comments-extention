@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Conventional Comments</title>
+    <link rel="stylesheet" href="shared.css">
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
@@ -13,7 +14,10 @@
           <h1>Labels</h1>
           <p class="subtitle">Conventional comments</p>
         </div>
-        <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Переключить тему" title="Переключить тему"></button>
+        <div class="header-actions">
+          <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Переключить тему" title="Переключить тему"></button>
+          <button id="open-settings" class="icon-button nf-icon" type="button" aria-label="Настройки" title="Настройки"><span aria-hidden="true">&#xf013;</span></button>
+        </div>
       </header>
       <form id="label-form" class="label-form">
         <div id="label-list" class="label-list" aria-label="Conventional Comments labels"></div>
@@ -25,27 +29,8 @@
           </button>
         </div>
       </form>
-      <details id="site-settings" class="site-settings">
-        <summary>Сайты и размещение панели</summary>
-        <label for="profile-list">Профиль</label>
-        <select id="profile-list"></select>
-        <p id="profile-warning" class="profile-help"></p>
-        <form id="profile-form" class="profile-form">
-          <label>Адрес сайта<input id="profile-origin" required placeholder="https://git.company.ru"></label>
-          <label>Страницы (один путь на строку)<textarea id="profile-paths" rows="2" required></textarea></label>
-          <p class="profile-help">Например, /*/-/merge_requests/*; * означает любую часть пути.</p>
-          <label>CSS-селектор редактора<input id="profile-editorSelector" required spellcheck="false"></label>
-          <label>Положение панели<select id="profile-placement"><option value="before">Над редактором</option><option value="after">Под редактором</option></select></label>
-          <p class="profile-help">Корректные изменения сохраняются автоматически.</p>
-          <div class="profile-actions"><button id="profile-reset" type="button">Восстановить</button></div>
-        </form>
-        <div class="profile-actions"><button id="profile-connect" type="button" disabled>Разрешить доступ к сайту</button></div>
-        <p id="profile-access" class="profile-help"></p>
-        <p id="profile-status" role="status" aria-live="polite"></p>
-      </details>
     </main>
+    <script src="theme.js"></script>
     <script src="popup.js"></script>
-    <script src="site-profiles.js"></script>
-    <script src="profile-settings.js"></script>
   </body>
 </html>

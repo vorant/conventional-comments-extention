@@ -76,6 +76,7 @@ class FakeDocument {
 
     for (const [id, tagName] of [
       ["theme-toggle", "button"],
+      ["open-settings", "button"],
       ["label-form", "form"],
       ["label-list", "div"],
       ["new-label", "input"]
@@ -105,6 +106,7 @@ async function createPopupContext(initialLabels, initialTheme) {
   const document = new FakeDocument();
   const storedItems = {};
   let setCallCount = 0;
+  let optionsCalls = 0;
   if (initialLabels !== undefined) {
     storedItems.ccLabels = initialLabels;
   }
@@ -115,6 +117,7 @@ async function createPopupContext(initialLabels, initialTheme) {
   const context = {
     document,
     chrome: {
+      runtime: { openOptionsPage() { optionsCalls++; } },
       storage: {
         sync: {
           get(key, callback) {
@@ -132,10 +135,11 @@ async function createPopupContext(initialLabels, initialTheme) {
     }
   };
 
+  vm.runInNewContext(fs.readFileSync(path.join(rootDir, "src/theme.js"), "utf8"), context);
   vm.runInNewContext(popupScript, context);
   await waitForAsyncWork();
 
-  return { document, getSetCallCount: () => setCallCount, storedItems };
+  return { document, getOptionsCalls: () => optionsCalls, getSetCallCount: () => setCallCount, storedItems };
 }
 
 function renderedLabelInputs(document) {
@@ -393,4 +397,12 @@ test("popup delete control is a red icon-only trash button", async () => {
   assert.equal(deleteButton.getAttribute("title"), "Удалить label");
   assert.notEqual(deleteButton.textContent, "Delete");
   assert.ok(deleteButton.textContent.length > 0);
+});
+
+test("settings button opens Chrome options without writing labels", async () => {
+  const h = await createPopupContext(["todo"]);
+  h.document.getElementById("open-settings").click();
+  assert.equal(h.getOptionsCalls(), 1);
+  assert.equal(h.getSetCallCount(), 0);
+  assert.deepEqual(renderedLabelInputs(h.document).map(input => input.value), ["todo"]);
 });

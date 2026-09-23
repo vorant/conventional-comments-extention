@@ -45,7 +45,7 @@
     state.last = key(profile);
     state.pending = true; state.error = false; state.status = "Сохранение…";
     show(state);
-    // Send immediately: the worker owns the queue even if the popup closes.
+    // Send immediately: the worker owns the queue even if the settings page closes.
     send(reset ? { type: "cc-remove", id: profile.id } : { type: "cc-save", profile }).then(() => {
       if (version !== state.version) return;
       state.saved = key(profile); state.pending = false; state.status = reset ? "Встроенные настройки восстановлены." : "Сохранено";
@@ -108,6 +108,5 @@
     }
     render(states.get(params.get("profile")) || states.get("github"));
   }
-  if (params.has("profile")) $("site-settings").open = true;
   load().catch((error) => { $("profile-status").textContent = error.message; $("profile-status").setAttribute("data-error", "true"); });
 })();
