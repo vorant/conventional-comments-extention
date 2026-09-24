@@ -38,7 +38,7 @@ h1 {
 .label-row,
 .add-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 6px;
   align-items: center;
 }
@@ -126,3 +126,15 @@ body[data-theme="dark"] .drag-handle-icon-dark {
   background: var(--cc-popup-danger-hover);
   border-color: var(--cc-popup-danger);
 }
+
+
+.label-color {
+  width: 30px;
+  height: 30px;
+  padding: 3px;
+  cursor: pointer;
+}
+#labels-status { margin: 10px 0 0; font-size: 12px; color: var(--cc-popup-muted); }
+#labels-status:empty { display: none; }
+#labels-status[data-error="true"] { color: var(--cc-popup-danger); }
+#labels-retry { margin-top: 6px; }

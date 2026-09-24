@@ -36,7 +36,7 @@ test("manifest declares GitHub Pull Request content script and popup settings", 
     default_icon: expectedIcons
   });
   assert.deepEqual(manifest.content_scripts[0].matches, ["https://github.com/*"]);
-  assert.deepEqual(manifest.content_scripts[0].js, ["src/panel-styles.js", "src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"]);
+  assert.deepEqual(manifest.content_scripts[0].js, ["src/panel-styles.js", "src/label-settings.js", "src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"]);
   assert.deepEqual(manifest.content_scripts[0].css, ["src/content-style.css"]);
 
   for (const iconPath of Object.values(expectedIcons)) {
@@ -51,23 +51,12 @@ test("content script is bundled in dependency order with site profiles", () => {
   assert.equal(manifest.content_scripts[0].js.at(-1), "src/content-script.js");
 });
 
-test("popup and content script expose the same default Conventional Comments labels", () => {
-  const contentScript = readText("src/content-script.js");
-  const popupScript = readText("src/popup.js");
-  const expectedLabels = [
-    "praise",
-    "nitpick",
-    "suggestion",
-    "issue",
-    "todo",
-    "question",
-    "thought",
-    "chore",
-    "note"
-  ];
-
-  assert.deepEqual(extractDefaultLabels(contentScript), expectedLabels);
-  assert.deepEqual(extractDefaultLabels(popupScript), expectedLabels);
+test("popup and content script use one shared label model", () => {
+  for (const file of ["src/popup.js", "src/content-script.js"]) assert.match(readText(file), /globalThis.CCLabels/);
+  const html = readText("src/popup.html");
+  assert.ok(html.indexOf('src="label-settings.js"') < html.indexOf('src="popup.js"'));
+  assert.ok(JSON.parse(readText("manifest.json")).content_scripts[0].js.indexOf("src/label-settings.js") <
+    JSON.parse(readText("manifest.json")).content_scripts[0].js.indexOf("src/content-script.js"));
 });
 
 test("popup static assets are wired without external dependencies", () => {

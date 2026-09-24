@@ -4,6 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
 
+const L = require('../src/label-settings');
 const rootDir = path.resolve(__dirname, "..");
 const popupScript = fs.readFileSync(path.join(rootDir, "src/popup.js"), "utf8");
 
@@ -79,7 +80,7 @@ class FakeDocument {
       ["open-settings", "button"],
       ["label-form", "form"],
       ["label-list", "div"],
-      ["new-label", "input"]
+      ["new-label", "input"], ["labels-status","p"], ["labels-retry","button"]
     ]) {
       this.elements.set(id, new FakeElement(tagName, id));
     }
@@ -102,9 +103,10 @@ function waitForAsyncWork() {
   });
 }
 
-async function createPopupContext(initialLabels, initialTheme) {
+async function createPopupContext(initialLabels, initialTheme, options = {}) {
   const document = new FakeDocument();
-  const storedItems = {};
+  const storedItems = { ...options.stored };
+  const pending = [];
   let setCallCount = 0;
   let optionsCalls = 0;
   if (initialLabels !== undefined) {
@@ -115,13 +117,23 @@ async function createPopupContext(initialLabels, initialTheme) {
   }
 
   const context = {
-    document,
+    document, CCLabels:L,
     chrome: {
-      runtime: { openOptionsPage() { optionsCalls++; } },
+      runtime: { openOptionsPage() { optionsCalls++; }, sendMessage(message) {
+        setCallCount++;
+        return new Promise(resolve=>{
+          const complete=(ok=true)=>{
+            if(ok)Object.assign(storedItems,L.snapshot(message.items));
+            resolve({ok,error:"Ошибка записи"});
+          };
+          if(options.delayed)pending.push(complete);else complete();
+        });
+      } },
       storage: {
         sync: {
           get(key, callback) {
-            callback({ [key]: storedItems[key] });
+            const data=Array.isArray(key)?Object.fromEntries(key.map(k=>[k,storedItems[k]])):{[key]:storedItems[key]};
+            if(callback)callback(data);else return Promise.resolve(data);
           },
           set(items, callback) {
             setCallCount += 1;
@@ -139,7 +151,7 @@ async function createPopupContext(initialLabels, initialTheme) {
   vm.runInNewContext(popupScript, context);
   await waitForAsyncWork();
 
-  return { document, getOptionsCalls: () => optionsCalls, getSetCallCount: () => setCallCount, storedItems };
+  return { document, pending, getOptionsCalls: () => optionsCalls, getSetCallCount: () => setCallCount, storedItems };
 }
 
 function renderedLabelInputs(document) {
@@ -190,6 +202,8 @@ test("popup uses light theme by default", async () => {
 
   assert.equal(document.body.getAttribute("data-theme"), "light");
   assert.equal(toggle.getAttribute("aria-pressed"), "false");
+  assert.equal(toggle.textContent, String.fromCodePoint(0xf186));
+  assert.equal(toggle.getAttribute("aria-label"), "Включить тёмную тему");
 });
 
 test("popup applies a saved dark theme", async () => {
@@ -198,6 +212,8 @@ test("popup applies a saved dark theme", async () => {
 
   assert.equal(document.body.getAttribute("data-theme"), "dark");
   assert.equal(toggle.getAttribute("aria-pressed"), "true");
+  assert.equal(toggle.textContent, String.fromCodePoint(0xf05a8));
+  assert.equal(toggle.getAttribute("title"), "Включить светлую тему");
 });
 
 test("popup toggles and persists light and dark themes", async () => {
@@ -378,7 +394,7 @@ test("popup adds only non-empty labels", async () => {
 
 test("popup deletes labels including the last remaining label", async () => {
   const { document, storedItems } = await createPopupContext(["todo"]);
-  const deleteButton = document.getElementById("label-list").children[0].children[2];
+  const deleteButton = document.getElementById("label-list").children[0].children[3];
 
   deleteButton.click();
   await waitForAsyncWork();
@@ -389,7 +405,7 @@ test("popup deletes labels including the last remaining label", async () => {
 
 test("popup delete control is a red icon-only trash button", async () => {
   const { document } = await createPopupContext(["todo"]);
-  const deleteButton = document.getElementById("label-list").children[0].children[2];
+  const deleteButton = document.getElementById("label-list").children[0].children[3];
 
   assert.match(deleteButton.className, /delete-button/);
   assert.match(deleteButton.className, /nf-icon/);
@@ -405,4 +421,62 @@ test("settings button opens Chrome options without writing labels", async () => 
   assert.equal(h.getOptionsCalls(), 1);
   assert.equal(h.getSetCallCount(), 0);
   assert.deepEqual(renderedLabelInputs(h.document).map(input => input.value), ["todo"]);
+});
+
+const rowPicker=(h,index=0)=>h.document.getElementById('label-list').children[index].children[2];
+const pick=(h,value,index=0)=>{const p=rowPicker(h,index);p.value=value;p.dispatchEvent({type:'input'});};
+test('native picker exposes default color and accessible name, rename preserves color',async()=>{
+ const h=await createPopupContext(['praise']);
+ const picker=rowPicker(h);
+ assert.equal(picker.type,'color');assert.equal(picker.value,L.PALETTE.praise);
+ assert.equal(picker.getAttribute('aria-label'),'Цвет label praise');
+ pick(h,'#123456');await waitForAsyncWork();
+ const input=renderedLabelInputs(h.document)[0];input.value='renamed';input.dispatchEvent({type:'input'});await waitForAsyncWork();
+ assert.deepEqual(h.storedItems[L.KEY].items,[{text:'renamed',color:'#123456'}]);
+ assert.equal(picker.getAttribute('aria-label'),'Цвет label renamed');
+ const reopened=await createPopupContext(undefined,undefined,{stored:h.storedItems});
+ assert.equal(rowPicker(reopened).value,'#123456');
+});
+test('duplicate names have independent colors and reorder/cancel preserve each record',async()=>{
+ const h=await createPopupContext(['same','same','issue']);
+ pick(h,'#123456',0);pick(h,'#abcdef',1);await waitForAsyncWork();
+ const list=h.document.getElementById('label-list');
+ list.children[0].dispatchEvent(createDragEvent('dragstart'));list.children[2].dispatchEvent(createDragEvent('dragover'));
+ assert.deepEqual(list.children.map(row=>row.children[2].value),['#abcdef',L.PALETTE.issue,'#123456']);
+ list.children[2].dispatchEvent(createDragEvent('dragend'));
+ assert.deepEqual(list.children.map(row=>row.children[2].value),['#123456','#abcdef',L.PALETTE.issue]);
+ list.children[0].dispatchEvent(createDragEvent('dragstart'));list.children[2].dispatchEvent(createDragEvent('drop'));await waitForAsyncWork();
+ assert.deepEqual(h.storedItems[L.KEY].items.map(x=>x.color),['#abcdef',L.PALETTE.issue,'#123456']);
+});
+test('new standard-named label starts neutral and deletion removes its color',async()=>{
+ const h=await createPopupContext([]);
+ const input=h.document.getElementById('new-label');input.value='praise';
+ h.document.getElementById('label-form').dispatchEvent({type:'submit',preventDefault(){}});
+ await waitForAsyncWork();assert.equal(rowPicker(h).value,L.NEUTRAL);
+ pick(h,'#123456');await waitForAsyncWork();h.document.getElementById('label-list').children[0].children[3].click();
+ await waitForAsyncWork();assert.deepEqual(h.storedItems[L.KEY].items,[]);
+});
+test('picker interaction prevents dragging without replacing text draft',async()=>{
+ const h=await createPopupContext(['note']),row=h.document.getElementById('label-list').children[0],picker=rowPicker(h);
+ picker.dispatchEvent({type:'pointerdown'});assert.equal(row.draggable,false);
+ picker.dispatchEvent({type:'pointerup'});assert.equal(row.draggable,true);
+ const event=createDragEvent('dragstart');event.target=picker;row.dispatchEvent(event);assert.equal(event.defaultPrevented,true);
+ assert.equal(renderedLabelInputs(h.document)[0].value,'note');
+});
+test('last edit owns status, stale replies do not alter drafts and failed snapshot can retry',async()=>{
+ const h=await createPopupContext(['note'],'dark',{delayed:true});
+ pick(h,'#111111');pick(h,'#222222');
+ assert.equal(h.document.getElementById('labels-status').textContent,'Сохранение…');
+ h.pending[1]();await waitForAsyncWork();h.pending[0](false);await waitForAsyncWork();
+ assert.equal(h.document.getElementById('labels-status').textContent,'Сохранено');assert.equal(rowPicker(h).value,'#222222');
+ pick(h,'#333333');h.pending[2](false);await waitForAsyncWork();
+ assert.equal(h.document.getElementById('labels-retry').hidden,false);
+ assert.equal(rowPicker(h).value,'#333333');assert.equal(h.document.body.getAttribute('data-theme'),'dark');
+ h.document.getElementById('labels-retry').click();h.pending[3]();await waitForAsyncWork();
+ assert.equal(h.storedItems[L.KEY].items[0].color,'#333333');assert.equal(h.document.getElementById('labels-retry').hidden,true);
+});
+test('unknown storage schema blocks edits without replacing stored settings',async()=>{
+ const stored={[L.KEY]:{schemaVersion:99}},h=await createPopupContext(undefined,undefined,{stored});
+ assert.equal(h.getSetCallCount(),0);assert.equal(h.document.getElementById('new-label').disabled,true);
+ assert.match(h.document.getElementById('labels-status').textContent,/версия/);assert.deepEqual(h.storedItems,stored);
 });

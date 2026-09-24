@@ -2,7 +2,7 @@
   "use strict";
   const THEME_STORAGE_KEY = "ccTheme";
   const THEMES = ["light", "dark"];
-  const ICONS = { moon: String.fromCodePoint(0xf186), sun: String.fromCodePoint(0xf185) };
+  const ICONS = { moon: String.fromCodePoint(0xf186), sun: String.fromCodePoint(0xf05a8) }; // nf-md-white_balance_sunny
   let theme = "light";
   const getStorageArea = () => globalThis.chrome?.storage?.sync;
   function normalizeTheme(value) {
@@ -63,6 +63,9 @@
     if (!toggle) return;
     toggle.className = "icon-button theme-toggle nf-icon";
     toggle.textContent = theme === "dark" ? ICONS.sun : ICONS.moon;
+    const action = theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему";
+    toggle.setAttribute("aria-label", action);
+    toggle.setAttribute("title", action);
     toggle.setAttribute("aria-pressed", String(theme === "dark"));
   }
 

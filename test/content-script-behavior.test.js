@@ -5,6 +5,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 const { Document, parse } = require('./helpers/dom');
 const P = require('../src/site-profiles');
+const L = require('../src/label-settings');
 const A = require('../src/editor-adapters');
 const E = require('../src/panel-engine');
 const source = fs.readFileSync(path.join(__dirname,'../src/content-script.js'),'utf8');
@@ -12,21 +13,25 @@ const flush = async () => { for(let i=0;i<10;i++) await Promise.resolve(); };
 function create(options={}) {
   const doc = new Document();
   parse(doc, options.html || '<form class="js-previewable-comment-form"><text-expander><textarea name="comment[body]"></textarea></text-expander></form>');
-  let profiles = options.profiles || P.all(), labels = options.labels, now = 0, id = 0;
+  let profiles = options.profiles || P.all(), labels = options.labels, settings = options.settings, now = 0, id = 0;
+  let scheme = options.scheme || "normal", systemDark = false, themeListener;
   const timers = new Map(), intervals = [], observers = [], runtimeListeners = [], storageListeners = [], sent = [];
   const location = {href:options.href || 'https://github.com/a/b/pull/12'};
-  const context = { document:doc, location, CCProfiles:P, CCEditors:A, CCPanel:E,
-    window:{addEventListener(){}}, Date:{now:()=>now},
+  const context = { document:doc, location, CCProfiles:P, CCEditors:A, CCPanel:E, CCLabels:L,
+    getComputedStyle:()=>({colorScheme:scheme}),
+    window:{addEventListener(){},matchMedia(){return {get matches(){return systemDark;},addEventListener(event,fn){themeListener=fn;}};}}, Date:{now:()=>now},
     setTimeout(fn,ms){timers.set(++id,{fn,time:now+ms});return id;},clearTimeout(id){timers.delete(id);},setInterval(fn){intervals.push(fn);},
     MutationObserver:class { constructor(fn){observers.push(fn);} observe(){} },
     chrome:{runtime:{onMessage:{addListener(fn){runtimeListeners.push(fn);}},async sendMessage(message){sent.push(message);return message.type==='cc-config'?{ok:true,profiles}: {ok:true};}},
-      storage:{sync:{async get(){return {ccLabels:labels};}},onChanged:{addListener(fn){storageListeners.push(fn);}}}}
+      storage:{sync:{async get(){return {ccLabels:labels,[L.KEY]:settings};}},onChanged:{addListener(fn){storageListeners.push(fn);}}}}
   };
   const ctx=vm.createContext(context);vm.runInContext(source,ctx);
   async function tick(ms=31){now+=ms;for(let n=0;n<10;n++){const due=[...timers].filter(([,t])=>t.time<=now);if(!due.length)break;for(const [key,t] of due){timers.delete(key);t.fn();await flush();}}await flush();}
   function mutate(){observers[0]([{target:doc.body}]);}
   async function message(message){let reply;const pending=runtimeListeners[0](message,{},r=>{reply=r;});if(pending)await flush();return reply;}
   return {doc,sent,flush,tick,mutate,message,context:ctx,
+    async changeColors(items){settings={schemaVersion:1,items};storageListeners[0]({[L.KEY]:{}},'sync');await flush();},
+    async theme(value,dark=false){scheme=value;systemDark=dark;observers[1]([]);themeListener();await tick();},
     async changeLabels(value){labels=value;storageListeners[0]({ccLabels:{}},'sync');await flush();},
     async changeProfiles(value){profiles=value;await message({type:'cc-reload'});},
     async navigate(url){location.href=url;intervals.forEach(fn=>fn());await tick();}
@@ -138,4 +143,42 @@ test('CSS revisions preserve existing diagnostics without leaving duplicate noti
   h.doc.querySelector('.cc-profile-notice').querySelectorAll('button')[1].click();
   await h.changeProfiles([{...p,revision:4}]);await h.tick(510);
   assert.equal(h.doc.querySelectorAll('.cc-profile-notice').length,1);
+});
+
+test('color-only changes keep every button, focus and editor text with empty or custom CSS',async()=>{
+ const h=create({html:'<form><textarea name="comment[body]"></textarea></form><form><textarea name="comment[body]"></textarea></form>'});await h.flush();
+ const buttons=h.doc.querySelectorAll('.cc-label-button'),editor=h.doc.querySelector('textarea');
+ buttons[0].focus();editor.value='unchanged';
+ const items=L.defaults();items[0].color='#ff8800';
+ await h.changeColors(items);
+ assert.deepEqual(h.doc.querySelectorAll('.cc-label-button'),buttons);
+ assert.equal(h.doc.activeElement,buttons[0]);assert.equal(editor.value,'unchanged');
+ for(const button of [buttons[0],buttons[9]]){
+  assert.equal(button.style.getPropertyValue('background'),L.shades('#ff8800').background);
+  for(const prop of ['color','background','border-color'])assert.equal(button.style.getPropertyPriority(prop),'important');
+ }
+ for(const panelCss of ['', '.cc-label-button { color: red !important }']){
+  await h.changeProfiles([{...P.all()[0],panelCss}]);
+  assert.equal(h.doc.querySelector('.cc-label-button'),buttons[0]);
+  assert.equal(buttons[0].style.getPropertyValue('color'),L.shades('#ff8800').foreground);
+ }
+ parse(h.doc,'<form><textarea name="comment[body]"></textarea></form>');h.mutate();await h.tick();
+ assert.equal(h.doc.querySelectorAll('.cc-label-button')[18].style.getPropertyValue('background'),L.shades('#ff8800').background);
+ await h.message({type:'cc-stop'});assert.equal(h.doc.querySelector('.cc-label-button'),null);
+});
+test('site color-scheme wins over system, theme change recolors in place without observer churn',async()=>{
+ const h=create({labels:['praise'],scheme:'light'});await h.flush();
+ const button=h.doc.querySelector('.cc-label-button');
+ await h.theme('dark',false);assert.equal(button.style.getPropertyValue('background'),L.shades(L.PALETTE.praise,true).background);
+ await h.theme('light',true);assert.equal(button.style.getPropertyValue('background'),L.shades(L.PALETTE.praise,false).background);
+ await h.theme('normal',true);assert.equal(button.style.getPropertyValue('background'),L.shades(L.PALETTE.praise,true).background);
+ let writes=0;const original=button.style.setProperty;button.style.setProperty=(...args)=>{writes++;original(...args);};
+ h.mutate();await h.tick();h.mutate();await h.tick();assert.equal(writes,0);
+});
+test('colored records insert only text and unknown settings fall back to legacy without dropping panels',async()=>{
+ const h=create({settings:{schemaVersion:1,items:[{text:'idea💡',color:'#123456'}]}});await h.flush();
+ const button=h.doc.querySelector('.cc-label-button');button.click();
+ assert.equal(h.doc.querySelector('textarea').value,'idea💡: ');assert.equal(button.textContent,'idea💡:');
+ const fallback=create({labels:['note'],settings:{schemaVersion:99}});await fallback.flush();
+ assert.equal(fallback.doc.querySelector('.cc-label-button').textContent,'note:');
 });

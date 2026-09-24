@@ -94,5 +94,7 @@ test('existing registrations upgrade dependency resources even with identical ma
   const h=setup({},[{id:'cc-sites',matches:['https://gitlab.com/*'],js:['src/site-profiles.js']}]);
   h.granted.add('https://gitlab.com/*');await flush();
   assert.equal(h.getRegistered()[0].js[0],'src/panel-styles.js');
+  assert.ok(h.getRegistered()[0].js.includes('src/label-settings.js'));
   assert.equal(h.calls.find(([t])=>t==='inject')[1].files[0],'src/panel-styles.js');
+  assert.ok(h.calls.find(([t])=>t==='inject')[1].files.includes('src/label-settings.js'));
 });

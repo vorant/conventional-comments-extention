@@ -1,19 +1,7 @@
 (function () {
   "use strict";
 
-  const DEFAULT_LABELS = [
-    "praise",
-    "nitpick",
-    "suggestion",
-    "issue",
-    "todo",
-    "question",
-    "thought",
-    "chore",
-    "note"
-  ];
-
-  const LABEL_STORAGE_KEY = "ccLabels";
+  const L = globalThis.CCLabels;
   const ICONS = {
     grip: String.fromCodePoint(0xf0c9),
     trash: String.fromCodePoint(0xf01b4)
@@ -22,69 +10,29 @@
   let labels = [];
   let dragState = null;
 
-  function getStorageArea() {
-    return globalThis.chrome && chrome.storage && chrome.storage.sync
-      ? chrome.storage.sync
-      : null;
+  let version = 0, lastSnapshot = null;
+  const status = document.getElementById("labels-status");
+  const retry = document.getElementById("labels-retry");
+  function showStatus(text, error = false) {
+    status.textContent = text;
+    status.setAttribute("data-error", String(error));
+    retry.hidden = !error;
   }
-
-  function normalizeLabels(value, fallback) {
-    if (!Array.isArray(value)) {
-      return fallback.slice();
+  async function saveLabels() {
+    const items = L.normalize(labels), snapshot = JSON.stringify(items);
+    if (snapshot === lastSnapshot) return;
+    lastSnapshot = snapshot;
+    const current = ++version;
+    showStatus("Сохранение…");
+    try {
+      const result = await chrome.runtime.sendMessage({ type: "cc-save-labels", items });
+      if (!result?.ok) throw new Error(result?.error || "Нет связи с расширением.");
+      if (current === version) showStatus("Сохранено");
+    } catch (error) {
+      if (current !== version) return;
+      lastSnapshot = null;
+      showStatus(error.message, true);
     }
-
-    return value
-      .filter((label) => typeof label === "string")
-      .map((label) => label.trim())
-      .filter(Boolean);
-  }
-
-  function readLabels() {
-    const storage = getStorageArea();
-    if (!storage || typeof storage.get !== "function") {
-      return Promise.resolve(DEFAULT_LABELS.slice());
-    }
-
-    return new Promise((resolve) => {
-      let settled = false;
-      const settle = (value) => {
-        if (!settled) {
-          settled = true;
-          resolve(normalizeLabels(value, DEFAULT_LABELS));
-        }
-      };
-
-      try {
-        const result = storage.get(LABEL_STORAGE_KEY, (items) => {
-          settle(items && items[LABEL_STORAGE_KEY]);
-        });
-
-        if (result && typeof result.then === "function") {
-          result.then((items) => settle(items && items[LABEL_STORAGE_KEY]), () => settle(undefined));
-        }
-      } catch (error) {
-        settle(undefined);
-      }
-    });
-  }
-
-  function saveLabels() {
-    const storage = getStorageArea();
-    const savedLabels = normalizeLabels(labels, []);
-    if (!storage || typeof storage.set !== "function") {
-      return Promise.resolve();
-    }
-
-    return new Promise((resolve) => {
-      try {
-        const result = storage.set({ [LABEL_STORAGE_KEY]: savedLabels }, resolve);
-        if (result && typeof result.then === "function") {
-          result.then(resolve, resolve);
-        }
-      } catch (error) {
-        resolve();
-      }
-    });
   }
 
   function getReorderedLabels(sourceLabels, fromIndex, toIndex) {
@@ -136,6 +84,7 @@
   }
 
   function onLabelDragStart(event, index) {
+    if (event.target?.type === "color" || document.activeElement?.type === "color") { event.preventDefault(); return; }
     dragState = {
       animationFirstIndex: null,
       animationLastIndex: null,
@@ -223,10 +172,28 @@
 
     const input = document.createElement("input");
     input.type = "text";
-    input.value = label;
+    input.value = label.text;
     input.setAttribute("aria-label", "Label");
     input.addEventListener("input", () => {
-      labels[index] = input.value.trim();
+      label.text = input.value.trim();
+      picker.setAttribute("aria-label", "Цвет label " + (label.text || "без названия"));
+      saveLabels();
+    });
+
+    const picker = document.createElement("input");
+    picker.type = "color";
+    picker.className = "label-color";
+    picker.value = label.color;
+    picker.setAttribute("aria-label", "Цвет label " + (label.text || "без названия"));
+    picker.setAttribute("title", "Выбрать цвет label");
+    picker.setAttribute("draggable", "false");
+    picker.addEventListener("pointerdown", () => { row.draggable = false; });
+    const enableDrag = () => { row.draggable = true; };
+    picker.addEventListener("pointerup", enableDrag);
+    picker.addEventListener("pointercancel", enableDrag);
+    picker.addEventListener("blur", enableDrag);
+    for (const event of ["input", "change"]) picker.addEventListener(event, () => {
+      label.color = L.color(picker.value);
       saveLabels();
     });
 
@@ -244,6 +211,7 @@
 
     row.append(createDragHandle());
     row.append(input);
+    row.append(picker);
     row.append(removeButton);
     return row;
   }
@@ -267,17 +235,27 @@
       return;
     }
 
-    labels.push(nextLabel);
+    labels.push({ text: nextLabel, color: L.NEUTRAL });
     input.value = "";
     renderLabels();
     await saveLabels();
   }
 
   async function init() {
-    labels = await readLabels();
-    renderLabels();
     document.getElementById("open-settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
-    document.getElementById("label-form").addEventListener("submit", addLabel);
+    retry.addEventListener("click", () => saveLabels());
+    try {
+      labels = L.read(await chrome.storage.sync.get(L.KEYS));
+      lastSnapshot = JSON.stringify(labels);
+      renderLabels();
+      document.getElementById("label-form").addEventListener("submit", addLabel);
+    } catch (error) {
+      showStatus(error.message, true);
+      // Do not offer to overwrite an unreadable or unknown configuration.
+      retry.hidden = true;
+      document.getElementById("new-label").disabled = true;
+      document.getElementById("label-form").addEventListener("submit", (event) => event.preventDefault());
+    }
   }
 
   if (document.readyState === "loading") {

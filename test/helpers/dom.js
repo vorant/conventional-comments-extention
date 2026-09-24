@@ -2,6 +2,12 @@
 class Element {
   constructor(tag, doc) {
     this.tagName = tag.toUpperCase(); this.ownerDocument = doc; this.children = []; this.parentElement = null;
+    const properties = new Map();
+    this.style = {
+      setProperty(name, value, priority = "") { properties.set(name, { value, priority }); },
+      getPropertyValue(name) { return properties.get(name)?.value || ""; },
+      getPropertyPriority(name) { return properties.get(name)?.priority || ""; }
+    };
     this.attributes = new Map(); this.listeners = new Map(); this._text = ""; this.value = ""; this.disabled = false; this.readOnly = false;
   }
   get className() { return this.getAttribute("class") || ""; }

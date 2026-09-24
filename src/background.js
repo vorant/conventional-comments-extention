@@ -1,7 +1,7 @@
 "use strict";
-importScripts("panel-styles.js", "site-profiles.js");
-const P = globalThis.CCProfiles;
-const FILES = ["src/panel-styles.js", "src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"];
+importScripts("panel-styles.js", "site-profiles.js", "label-settings.js");
+const P = globalThis.CCProfiles, L = globalThis.CCLabels;
+const FILES = ["src/panel-styles.js", "src/label-settings.js", "src/site-profiles.js", "src/editor-adapters.js", "src/panel-engine.js", "src/content-script.js"];
 const CSS = ["src/content-style.css"];
 let queue = Promise.resolve();
 const serial = (action) => { const result = queue.then(action); queue = result.catch(() => {}); return result; };
@@ -37,6 +37,41 @@ async function reconcile() {
     else { try { await chrome.tabs.sendMessage(tab.id, { type: "cc-stop" }); } catch { /* No injected context. */ } }
   }));
 }
+// Coalesce picker input in the worker so closing the popup cannot cancel accepted work.
+// Space writes below sync's hourly quota as well as its per-minute burst limit.
+let labelPending, labelWriting = false, labelTimer, labelLastWrite = -Infinity;
+function saveLabels(items) {
+  const value = L.snapshot(items);
+  return new Promise((resolve, reject) => {
+    const waiters = labelPending?.waiters || [];
+    waiters.push({ resolve, reject });
+    labelPending = { value, waiters };
+    scheduleLabels();
+  });
+}
+function scheduleLabels() {
+  if (labelWriting || !labelPending) return;
+  clearTimeout(labelTimer);
+  labelTimer = setTimeout(flushLabels, Math.max(180, 2100 - (Date.now() - labelLastWrite)));
+}
+async function flushLabels() {
+  const batch = labelPending;
+  labelPending = null;
+  labelWriting = true;
+  try {
+    // Refuse to overwrite an unknown schema even if it arrived since popup load.
+    L.read(await chrome.storage.sync.get(L.KEYS));
+    labelLastWrite = Date.now();
+    await chrome.storage.sync.set(batch.value);
+    for (const waiter of batch.waiters) waiter.resolve({ ok: true });
+  } catch (error) {
+    for (const waiter of batch.waiters) waiter.reject(error);
+  } finally {
+    labelWriting = false;
+    scheduleLabels();
+  }
+}
+
 function extensionPage(sender) { return !sender.tab || sender.url?.startsWith(chrome.runtime.getURL("")); }
 async function handle(message, sender) {
   if (message.type === "cc-config") return { ok: true, profiles: await allowed(P.all(await data())) };
@@ -47,6 +82,7 @@ async function handle(message, sender) {
     return { ok: true };
   }
   if (!extensionPage(sender)) throw new Error("Действие доступно только в настройках расширения.");
+  if (message.type === "cc-save-labels") return saveLabels(message.items);
   if (message.type === "cc-refresh") { await serial(reconcile); return { ok: true }; }
   if (["cc-save", "cc-remove", "cc-save-css", "cc-reset-css"].includes(message.type)) {
     return serial(async () => {

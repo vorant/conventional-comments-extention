@@ -2,10 +2,10 @@
   "use strict";
   if (globalThis.__ccLabelsStarted) return;
   globalThis.__ccLabelsStarted = true;
-  const DEFAULT_LABELS = ["praise", "nitpick", "suggestion", "issue", "todo", "question", "thought", "chore", "note"];
+  const L = globalThis.CCLabels;
   const P = globalThis.CCProfiles, A = globalThis.CCEditors, E = globalThis.CCPanel;
   const panels = new Map(), failures = new Map(), shown = new Set(), notices = new Map();
-  let profiles = [], labels = DEFAULT_LABELS, signature = "", profile = null, scanTimer, retryTimer, loadId = 0;
+  let profiles = [], labels = L.defaults(), signature = "", profile = null, scanTimer, retryTimer, loadId = 0;
   let lastHref = location.href;
   let noticeHost, panelStyle;
   function updateStyle() {
@@ -46,14 +46,38 @@
     }
     noticeHost.append(box); notices.set(key, box);
   }
+  const buttonColors = new WeakMap();
+  const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
+  function darkScheme(editor) {
+    const scheme = getComputedStyle(editor.parentElement || editor).colorScheme.split(/\s+/);
+    if (scheme.includes("dark") && !scheme.includes("light")) return true;
+    if (scheme.includes("light") && !scheme.includes("dark")) return false;
+    return systemTheme.matches;
+  }
+  function colorPanel(panel, editor) {
+    const dark = darkScheme(editor);
+    Array.from(panel.children).forEach((button, index) => {
+      const shades = L.shades(labels[index].color, dark);
+      // Inline important wins over profile CSS, including hover/focus and gradients.
+      // Color transitions must not briefly reveal the overridden profile color.
+      const previous = buttonColors.get(button) || {};
+      const styles = { color: shades.foreground, background: shades.background, "border-color": shades.border };
+      for (const [property, value] of Object.entries(styles)) {
+        if (previous[property] === value) continue;
+        button.style.setProperty(property, value, "important");
+      }
+      buttonColors.set(button, styles);
+    });
+  }
   function createPanel(editor) {
     const panel = document.createElement("div"); panel.className = "cc-label-panel";
     panel.setAttribute("data-cc-owned", "true"); panel.setAttribute("aria-label", "Conventional Comments labels");
     const current = profile;
     for (const label of labels) {
-      const button = document.createElement("button"); button.type = "button"; button.className = "cc-label-button"; button.textContent = `${label}:`;
+      const button = document.createElement("button"); button.type = "button"; button.className = "cc-label-button"; button.textContent = `${label.text}:`;
+      button.style.setProperty("transition-property", "none", "important");
       button.addEventListener("click", () => {
-        try { A.insert(editor, label, current.editorAdapter); }
+        try { A.insert(editor, label.text, current.editorAdapter); }
         catch (error) { notice("insert", error.message); }
       });
       panel.append(button);
@@ -89,10 +113,11 @@
         continue;
       }
       failures.delete(editor);
-      if (existing && existing.anchor === anchor && E.inPlace(existing.panel, anchor, profile.placement)) continue;
+      if (existing && existing.anchor === anchor && E.inPlace(existing.panel, anchor, profile.placement)) { colorPanel(existing.panel, editor); continue; }
       if (existing) existing.panel.remove();
       const panel = createPanel(editor);
       E.place(panel, anchor, profile.placement);
+      colorPanel(panel, editor);
       editor.setAttribute("data-cc-label-panel", "true"); panels.set(editor, { panel, anchor });
     }
     for (const editor of failures.keys()) if (!live.has(editor)) failures.delete(editor);
@@ -105,13 +130,15 @@
     const id = ++loadId;
     try {
       const [response, stored] = await Promise.all([
-        chrome.runtime.sendMessage({ type: "cc-config" }), chrome.storage.sync.get("ccLabels")
+        chrome.runtime.sendMessage({ type: "cc-config" }), chrome.storage.sync.get(L.KEYS)
       ]);
       if (id !== loadId) return;
       if (!response?.ok) throw new Error("Профили недоступны");
       profiles = response.profiles;
-      const nextLabels = Array.isArray(stored.ccLabels) ? stored.ccLabels.filter((l) => typeof l === "string").map((l) => l.trim()).filter(Boolean) : DEFAULT_LABELS;
-      if (JSON.stringify(nextLabels) !== JSON.stringify(labels)) clearUI();
+      let nextLabels;
+      try { nextLabels = L.read(stored); }
+      catch { nextLabels = L.legacy(stored[L.LEGACY_KEY]); }
+      if (JSON.stringify(nextLabels.map((l) => l.text)) !== JSON.stringify(labels.map((l) => l.text))) clearUI();
       labels = nextLabels; scan();
     } catch { if (id === loadId) { profiles = []; clearUI(); } }
   }
@@ -122,13 +149,18 @@
 
   });
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === "sync" && changes.ccLabels || area === "local" && changes[P.KEY]) reload();
+    if (area === "sync" && (changes[L.KEY] || changes[L.LEGACY_KEY]) || area === "local" && changes[P.KEY]) reload();
   });
   function start() {
     const observer = new MutationObserver((changes) => {
       if (changes.some((change) => !change.target.closest?.('[data-cc-owned]'))) schedule();
     });
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "name", "aria-label", "placeholder", "contenteditable", "disabled", "readonly"] });
+    const themeObserver = new MutationObserver(schedule);
+    for (const element of [document.documentElement, document.body]) {
+      themeObserver.observe(element, { attributes: true, attributeFilter: ["class", "style", "data-theme", "data-color-mode", "data-dark-theme", "data-light-theme"] });
+    }
+    systemTheme.addEventListener("change", schedule);
     window.addEventListener("popstate", schedule);
     // Also covers pushState/replaceState from isolated-world content scripts.
     setInterval(() => { if (location.href !== lastHref) { lastHref = location.href; schedule(); } }, 500);
