@@ -15,9 +15,9 @@ test('new records retain colors independently, invalid colors fall back and unkn
   assert.deepEqual(data.ccLabels,['same','same']);
   assert.deepEqual(L.read(data).map(x=>x.color),['#abcdef','#123456']);
   for(const color of ['',null,'red','#fff','#123456;display:none']){
-    assert.deepEqual(L.read({[L.KEY]:{schemaVersion:1,items:[{text:'issue',color}]}}),[{text:'issue',color:L.NEUTRAL}]);
+    assert.deepEqual(L.read({[L.KEY]:{schemaVersion:1,items:[{text:'issue',color}]}}),[{text:'issue',color:L.NEUTRAL,emoji:'🚨'}]);
   }
-  for(const value of [null,{schemaVersion:2,items:[]},{schemaVersion:1,items:null}]){
+  for(const value of [null,{schemaVersion:99,items:[]},{schemaVersion:1,items:null}]){
     const stored={[L.KEY]:value};const before=JSON.stringify(stored);
     assert.throws(()=>L.read(stored));assert.equal(JSON.stringify(stored),before);
   }
@@ -31,4 +31,25 @@ test('palette produces opaque contrast-safe colors for both schemes including ex
     }
   }
   assert.notDeepEqual(L.shades('#238636'),L.shades('#238636',true));
+});
+test('v2 migration preserves explicit absence, duplicates, colors and empty lists', () => {
+  assert.deepEqual(L.defaults().map(x=>x.emoji), ['👍','🔍','💡','🚨','✅','❓','💭','🔧','📝']);
+  const old={schemaVersion:1,items:[{text:'issue',color:'#123456'},{text:'custom',color:'#abcdef'}]};
+  assert.deepEqual(L.readSettings({[L.KEY]:old}),{schemaVersion:2,emojisEnabled:true,items:[{text:'issue',color:'#123456',emoji:'🚨'},{text:'custom',color:'#abcdef',emoji:''}]});
+  const value={schemaVersion:2,emojisEnabled:false,items:[{text:'issue',color:'#123456',emoji:''},{text:'issue',color:'#abcdef',emoji:'👩🏽‍💻'},{text:'praise',emoji:'<b>👍</b>'},{text:'note'}]};
+  const stored=L.snapshot(value), state=L.readSettings(stored);
+  assert.equal(state.emojisEnabled,false);
+  assert.deepEqual(state.items.map(x=>x.emoji),['','👩🏽‍💻','','']);
+  assert.deepEqual(L.readSettings(L.snapshot({...value,items:[]})).items,[]);
+  assert.equal(L.normalize([{text:'issue'}])[0].emoji,'');
+  assert.equal(L.read({ccLabels:['issue','unknown']})[0].emoji,'🚨');
+});
+test('whole emoji clusters and shared prefix keep Unicode and label text intact', () => {
+  for(const emoji of ['👍','👍🏽','👩🏽‍💻','👨‍👩‍👧‍👦','🇷🇺','❤️','❤︎','1️⃣','🏴\u{E0067}\u{E0062}\u{E007F}']) {
+    assert.equal(L.emoji(emoji),emoji);
+    assert.equal(L.prefix({text:'idea💡',emoji}),`${emoji} idea💡: `);
+    assert.equal(L.prefix({text:'idea💡',emoji},false),'idea💡: ');
+  }
+  for(const emoji of ['',null,7,'abc','👍👍','a\u200d💡','\n💡','💡 ','🇷','🏽','<img>']) assert.equal(L.emoji(emoji),'');
+  assert.equal(L.display({text:'issue',emoji:''}),'issue');
 });

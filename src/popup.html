@@ -19,6 +19,15 @@
           <button id="open-settings" class="icon-button nf-icon" type="button" aria-label="Настройки" title="Настройки"><span aria-hidden="true">&#xf013;</span></button>
         </div>
       </header>
+      <label id="emoji-toggle-row" class="emoji-toggle"><input id="emojis-enabled" type="checkbox" autocomplete="off" checked> Показывать и вставлять эмодзи</label>
+      <section id="emoji-view" hidden aria-labelledby="emoji-title">
+        <div class="emoji-actions"><button id="emoji-back" type="button">Назад</button><button id="emoji-none" type="button">Без эмодзи</button></div>
+        <h2 id="emoji-title"></h2>
+        <p id="emoji-current"></p>
+        <p id="emoji-status" role="status"></p>
+        <button id="emoji-retry" type="button" hidden>Повторить загрузку</button>
+        <div id="emoji-container"></div>
+      </section>
       <form id="label-form" class="label-form">
         <div id="label-list" class="label-list" aria-label="Conventional Comments labels"></div>
         <div class="add-row">
@@ -34,6 +43,7 @@
     </main>
     <script src="theme.js"></script>
     <script src="label-settings.js"></script>
+    <script src="emoji-picker.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

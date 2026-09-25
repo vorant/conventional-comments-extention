@@ -49,7 +49,7 @@ test('GitHub wrapper and GitLab textarea are resolved in synthetic fixtures', ()
   assert.equal(github.status,'ok'); assert.ok(github.items[0].anchor.className.includes('inputWrapper'));
   const gitlab = E.inspect(doc,P.defaults[1],A);
   assert.equal(gitlab.status,'ok');
-  A.insert(gitlab.items[0].editor,'idea💡','textarea');
+  A.insert(gitlab.items[0].editor,'idea💡: ','textarea');
   assert.equal(gitlab.items[0].editor.value,'idea💡: ');
 });
 test('placement uses each comment container and supports all positions', () => {
@@ -82,7 +82,7 @@ test('ambiguous shared container never borrows a neighbouring comment anchor', (
 test('textarea native setter, focus, cursor and input update are preserved without duplicating prefix', () => {
   const doc=new Document(), editor=doc.createElement('textarea');editor.value='Original';
   let input=0;editor.addEventListener('input',()=>input++);
-  A.insert(editor,'question','textarea');A.insert(editor,'question','textarea');
+  A.insert(editor,'question: ','textarea');A.insert(editor,'question: ','textarea');
   assert.equal(editor.value,'question: Original');assert.equal(editor.selectionStart,10);assert.equal(editor.selectionEnd,10);assert.equal(doc.activeElement,editor);assert.equal(input,2);
   editor.readOnly=true;assert.equal(A.supports(editor,'textarea'),false);
 });
@@ -91,8 +91,8 @@ test('rich text adapter delegates insertion to editing command and never assigns
   doc.getSelection=()=>({removeAllRanges(){},addRange(){}});doc.createRange=()=>({selectNodeContents(){},collapse(){}});
   doc.execCommand=(...args)=>{command=args;return true;};
   const before=editor.textContent;
-  A.insert(editor,'note','rich-text');assert.deepEqual(command,['insertText',false,'note: ']);assert.equal(editor.textContent,before);
-  doc.execCommand=()=>false;assert.throws(()=>A.insert(editor,'note','rich-text'),/отклонил/);
+  A.insert(editor,'note: ','rich-text');assert.deepEqual(command,['insertText',false,'note: ']);assert.equal(editor.textContent,before);
+  doc.execCommand=()=>false;assert.throws(()=>A.insert(editor,'note: ','rich-text'),/отклонил/);
 });
 test('placement never inserts toolbar inside an editable rich-text subtree',()=>{
   const doc=fixture();doc.execCommand=()=>true;
@@ -128,4 +128,21 @@ test('panel CSS distinguishes absent, empty and invalid values without losing ot
   assert.throws(()=>P.saveCss(legacy,'unknown',''));
   const both = P.saveCss(P.saveCss(legacy,'github','one'),'gitlab','two');
   assert.equal(P.all(P.saveCss(both,'github',null,true))[1].panelCss,'two');
+});
+test('shared Unicode prefixes reach both adapters intact and unsupported editors stay unchanged',()=>{
+ const L=require('../src/label-settings');
+ for(const emoji of ['👩🏽‍💻','🇷🇺','❤️',''])for(const enabled of [true,false]){
+  const prefix=L.prefix({text:'idea💡',emoji},enabled),doc=new Document(),editor=doc.createElement('textarea');
+  editor.value='Draft';A.insert(editor,prefix,'textarea');A.insert(editor,prefix,'textarea');
+  assert.equal(editor.value,prefix+'Draft');assert.equal(editor.selectionStart,prefix.length);assert.equal(editor.lastEvent.data,prefix);
+  editor.readOnly=true;assert.throws(()=>A.insert(editor,'other: ','textarea'));assert.equal(editor.value,prefix+'Draft');
+  const rich=doc.createElement('div');rich.setAttribute('contenteditable','true');rich.textContent='Draft';
+  let calls=0,offset;
+  const range={selectNodeContents(){},collapse(){},setStart(node,n){offset=n;}};
+  doc.createRange=()=>range;doc.getSelection=()=>({removeAllRanges(){},addRange(){}});
+  doc.execCommand=(command,ui,text)=>{calls++;assert.equal(text,prefix);rich.textContent=text+rich.textContent;return true;};
+  doc.createTreeWalker=()=>{let done=false;return {nextNode(){if(done)return null;done=true;return {textContent:rich.textContent};}};};
+  A.insert(rich,prefix,'rich-text');A.insert(rich,prefix,'rich-text');
+  assert.equal(calls,1);assert.equal(rich.textContent,prefix+'Draft');assert.equal(offset,prefix.length);
+ }
 });

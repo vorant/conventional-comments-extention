@@ -8,6 +8,7 @@
   };
 
   let labels = [];
+  let emojisEnabled = true;
   let dragState = null;
 
   let version = 0, lastSnapshot = null;
@@ -19,13 +20,13 @@
     retry.hidden = !error;
   }
   async function saveLabels() {
-    const items = L.normalize(labels), snapshot = JSON.stringify(items);
+    const settings = L.settings({ schemaVersion: 2, emojisEnabled, items: labels }), snapshot = JSON.stringify(settings);
     if (snapshot === lastSnapshot) return;
     lastSnapshot = snapshot;
     const current = ++version;
     showStatus("Сохранение…");
     try {
-      const result = await chrome.runtime.sendMessage({ type: "cc-save-labels", items });
+      const result = await chrome.runtime.sendMessage({ type: "cc-save-labels", settings });
       if (!result?.ok) throw new Error(result?.error || "Нет связи с расширением.");
       if (current === version) showStatus("Сохранено");
     } catch (error) {
@@ -33,6 +34,68 @@
       lastSnapshot = null;
       showStatus(error.message, true);
     }
+  }
+
+  let emojiTarget = null, emojiOpener = null, emojiPicker = null, pickerLoading = null, emojiSession = 0;
+  const element = (id) => document.getElementById(id);
+  function closeEmoji(restoreFocus = true) {
+    ++emojiSession;
+    const opener = emojiOpener;
+    emojiTarget = null; emojiOpener = null;
+    element("emoji-view").hidden = true;
+    element("label-form").hidden = false;
+    element("emoji-toggle-row").hidden = false;
+    if (restoreFocus) opener?.focus();
+  }
+  function chooseEmoji(value) {
+    if (!emojiTarget || !labels.includes(emojiTarget)) return;
+    emojiTarget.emoji = L.emoji(value);
+    emojiOpener.textContent = emojiTarget.emoji || "＋";
+    closeEmoji();
+    saveLabels();
+  }
+  async function loadEmoji() {
+    element("emoji-status").textContent = "Загрузка…";
+    element("emoji-retry").hidden = true;
+    try {
+      if (!emojiPicker) {
+        pickerLoading ||= rootPicker();
+        emojiPicker = await pickerLoading;
+      }
+      emojiPicker.className = document.body.getAttribute("data-theme") === "dark" ? "dark" : "light";
+      element("emoji-status").textContent = "";
+    } catch {
+      pickerLoading = null;
+      element("emoji-status").textContent = "Не удалось загрузить эмодзи. Повторите попытку.";
+      element("emoji-retry").hidden = false;
+    }
+  }
+  async function rootPicker() {
+    const picker = await globalThis.CCEmojiPicker.create();
+    picker.addEventListener("emoji-click-sync", async (event) => {
+      const session = emojiSession;
+      try {
+        const detail = await event.detail;
+        if (session === emojiSession) chooseEmoji(detail.unicode);
+      } catch {
+        if (session === emojiSession) element("emoji-status").textContent = "Не удалось выбрать эмодзи. Повторите выбор.";
+      }
+    });
+    picker.addEventListener("dragstart", (event) => event.preventDefault());
+    element("emoji-container").append(picker);
+    return picker;
+  }
+  function openEmoji(label, button) {
+    if (dragState) return;
+    ++emojiSession;
+    emojiTarget = label; emojiOpener = button;
+    element("emoji-title").textContent = "Эмодзи label " + (label.text || "без названия");
+    element("emoji-current").textContent = "Сейчас: " + (label.emoji || "Без эмодзи");
+    element("label-form").hidden = true;
+    element("emoji-toggle-row").hidden = true;
+    element("emoji-view").hidden = false;
+    element("emoji-back").focus();
+    loadEmoji();
   }
 
   function getReorderedLabels(sourceLabels, fromIndex, toIndex) {
@@ -84,7 +147,7 @@
   }
 
   function onLabelDragStart(event, index) {
-    if (event.target?.type === "color" || document.activeElement?.type === "color") { event.preventDefault(); return; }
+    if (emojiTarget || event.target?.className === "label-emoji" || document.activeElement?.className === "label-emoji" || event.target?.type === "color" || document.activeElement?.type === "color") { event.preventDefault(); return; }
     dragState = {
       animationFirstIndex: null,
       animationLastIndex: null,
@@ -177,6 +240,7 @@
     input.addEventListener("input", () => {
       label.text = input.value.trim();
       picker.setAttribute("aria-label", "Цвет label " + (label.text || "без названия"));
+      emojiButton.setAttribute("aria-label", "Эмодзи label " + (label.text || "без названия"));
       saveLabels();
     });
 
@@ -197,6 +261,16 @@
       saveLabels();
     });
 
+    const emojiButton = document.createElement("button");
+    emojiButton.type = "button";
+    emojiButton.className = "label-emoji";
+    emojiButton.textContent = label.emoji || "＋";
+    emojiButton.setAttribute("aria-label", "Эмодзи label " + (label.text || "без названия"));
+    emojiButton.setAttribute("draggable", "false");
+    emojiButton.addEventListener("click", () => openEmoji(label, emojiButton));
+    emojiButton.addEventListener("pointerdown", () => { row.draggable = false; });
+    for (const event of ["pointerup", "pointercancel", "blur"]) emojiButton.addEventListener(event, enableDrag);
+
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "icon-button delete-button nf-icon";
@@ -210,6 +284,7 @@
     });
 
     row.append(createDragHandle());
+    row.append(emojiButton);
     row.append(input);
     row.append(picker);
     row.append(removeButton);
@@ -217,6 +292,7 @@
   }
 
   function renderLabels() {
+    if (emojiTarget) closeEmoji(false);
     const list = document.getElementById("label-list");
     list.textContent = "";
 
@@ -235,7 +311,7 @@
       return;
     }
 
-    labels.push({ text: nextLabel, color: L.NEUTRAL });
+    labels.push({ text: nextLabel, color: L.NEUTRAL, emoji: "" });
     input.value = "";
     renderLabels();
     await saveLabels();
@@ -243,16 +319,33 @@
 
   async function init() {
     document.getElementById("open-settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
+    element("emoji-back").addEventListener("click", () => closeEmoji());
+    element("emoji-none").addEventListener("click", () => chooseEmoji(""));
+    element("emoji-retry").addEventListener("click", loadEmoji);
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && emojiTarget) { event.preventDefault(); event.stopPropagation(); closeEmoji(); }
+    });
+    element("theme-toggle").addEventListener("click", () => {
+      if (emojiPicker) emojiPicker.className = document.body.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    });
     retry.addEventListener("click", () => saveLabels());
     try {
-      labels = L.read(await chrome.storage.sync.get(L.KEYS));
-      lastSnapshot = JSON.stringify(labels);
+      const settings = L.readSettings(await chrome.storage.sync.get(L.KEYS));
+      labels = settings.items;
+      emojisEnabled = settings.emojisEnabled;
+      lastSnapshot = JSON.stringify(settings);
+      element("emojis-enabled").checked = emojisEnabled;
+      element("emojis-enabled").addEventListener("change", () => {
+        emojisEnabled = element("emojis-enabled").checked;
+        saveLabels();
+      });
       renderLabels();
       document.getElementById("label-form").addEventListener("submit", addLabel);
     } catch (error) {
       showStatus(error.message, true);
       // Do not offer to overwrite an unreadable or unknown configuration.
       retry.hidden = true;
+      element("emojis-enabled").disabled = true;
       document.getElementById("new-label").disabled = true;
       document.getElementById("label-form").addEventListener("submit", (event) => event.preventDefault());
     }

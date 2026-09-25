@@ -5,9 +5,8 @@
     return kind === "textarea" ? editor.tagName.toLowerCase() === "textarea" :
       kind === "rich-text" && editor.getAttribute("contenteditable") === "true" && typeof editor.ownerDocument.execCommand === "function";
   }
-  function insert(editor, label, kind) {
+  function insert(editor, prefix, kind) {
     if (!supports(editor, kind)) throw new Error("Этот редактор не поддерживается выбранным способом вставки.");
-    const prefix = `${label}: `;
     editor.focus();
     if (kind === "textarea") {
       const value = editor.value.startsWith(prefix) ? editor.value : prefix + editor.value;

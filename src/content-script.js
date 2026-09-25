@@ -5,7 +5,7 @@
   const L = globalThis.CCLabels;
   const P = globalThis.CCProfiles, A = globalThis.CCEditors, E = globalThis.CCPanel;
   const panels = new Map(), failures = new Map(), shown = new Set(), notices = new Map();
-  let profiles = [], labels = L.defaults(), signature = "", profile = null, scanTimer, retryTimer, loadId = 0;
+  let profiles = [], labels = L.defaults(), emojisEnabled = true, signature = "", profile = null, scanTimer, retryTimer, loadId = 0;
   let lastHref = location.href;
   let noticeHost, panelStyle;
   function updateStyle() {
@@ -58,6 +58,8 @@
     const dark = darkScheme(editor);
     Array.from(panel.children).forEach((button, index) => {
       const shades = L.shades(labels[index].color, dark);
+      const text = L.display(labels[index], emojisEnabled) + ":";
+      if (button.textContent !== text) button.textContent = text;
       // Inline important wins over profile CSS, including hover/focus and gradients.
       // Color transitions must not briefly reveal the overridden profile color.
       const previous = buttonColors.get(button) || {};
@@ -73,11 +75,11 @@
     const panel = document.createElement("div"); panel.className = "cc-label-panel";
     panel.setAttribute("data-cc-owned", "true"); panel.setAttribute("aria-label", "Conventional Comments labels");
     const current = profile;
-    for (const label of labels) {
-      const button = document.createElement("button"); button.type = "button"; button.className = "cc-label-button"; button.textContent = `${label.text}:`;
+    for (const [index, label] of labels.entries()) {
+      const button = document.createElement("button"); button.type = "button"; button.className = "cc-label-button"; button.textContent = L.display(label, emojisEnabled) + ":";
       button.style.setProperty("transition-property", "none", "important");
       button.addEventListener("click", () => {
-        try { A.insert(editor, label.text, current.editorAdapter); }
+        try { A.insert(editor, L.prefix(labels[index], emojisEnabled), current.editorAdapter); }
         catch (error) { notice("insert", error.message); }
       });
       panel.append(button);
@@ -136,8 +138,8 @@
       if (!response?.ok) throw new Error("Профили недоступны");
       profiles = response.profiles;
       let nextLabels;
-      try { nextLabels = L.read(stored); }
-      catch { nextLabels = L.legacy(stored[L.LEGACY_KEY]); }
+      try { const settings = L.readSettings(stored); nextLabels = settings.items; emojisEnabled = settings.emojisEnabled; }
+      catch { nextLabels = L.legacy(stored[L.LEGACY_KEY]); emojisEnabled = true; }
       if (JSON.stringify(nextLabels.map((l) => l.text)) !== JSON.stringify(labels.map((l) => l.text))) clearUI();
       labels = nextLabels; scan();
     } catch { if (id === loadId) { profiles = []; clearUI(); } }

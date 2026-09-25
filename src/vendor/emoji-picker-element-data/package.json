@@ -1,0 +1,61 @@
+{
+  "name": "emoji-picker-element-data",
+  "version": "1.8.0",
+  "description": "JSON files built from emojibase-data, designed for emoji-picker-element",
+  "type": "module",
+  "scripts": {
+    "prepare": "pnpm run build",
+    "build": "node build.js"
+  },
+  "keywords": [
+    "emoji",
+    "picker",
+    "element",
+    "data",
+    "emojibase"
+  ],
+  "author": "Nolan Lawson <nolan@nolanlawson.com>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "emojibase-data": "17.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nolanlawson/emoji-picker-element-data.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nolanlawson/emoji-picker-element-data/issues"
+  },
+  "homepage": "https://github.com/nolanlawson/emoji-picker-element-data#readme",
+  "packageManager": "pnpm@10.22.0+sha512.bf049efe995b28f527fd2b41ae0474ce29186f7edcb3bf545087bd61fbbebb2bf75362d1307fda09c2d288e1e499787ac12d4fcb617a974718a6051f2eee741c",
+  "files": [
+    "bn",
+    "da",
+    "de",
+    "en",
+    "en-gb",
+    "es",
+    "es-mx",
+    "et",
+    "fi",
+    "fr",
+    "hi",
+    "hu",
+    "it",
+    "ja",
+    "ko",
+    "lt",
+    "ms",
+    "nb",
+    "nl",
+    "pl",
+    "pt",
+    "ru",
+    "sv",
+    "th",
+    "uk",
+    "vi",
+    "zh",
+    "zh-hant"
+  ]
+}

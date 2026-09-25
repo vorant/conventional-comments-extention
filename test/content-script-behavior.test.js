@@ -30,6 +30,7 @@ function create(options={}) {
   function mutate(){observers[0]([{target:doc.body}]);}
   async function message(message){let reply;const pending=runtimeListeners[0](message,{},r=>{reply=r;});if(pending)await flush();return reply;}
   return {doc,sent,flush,tick,mutate,message,context:ctx,
+    async changeSettings(value){settings=value;storageListeners[0]({[L.KEY]:{}},'sync');await flush();},
     async changeColors(items){settings={schemaVersion:1,items};storageListeners[0]({[L.KEY]:{}},'sync');await flush();},
     async theme(value,dark=false){scheme=value;systemDark=dark;observers[1]([]);themeListener();await tick();},
     async changeLabels(value){labels=value;storageListeners[0]({ccLabels:{}},'sync');await flush();},
@@ -180,5 +181,26 @@ test('colored records insert only text and unknown settings fall back to legacy 
  const button=h.doc.querySelector('.cc-label-button');button.click();
  assert.equal(h.doc.querySelector('textarea').value,'idea💡: ');assert.equal(button.textContent,'idea💡:');
  const fallback=create({labels:['note'],settings:{schemaVersion:99}});await fallback.flush();
- assert.equal(fallback.doc.querySelector('.cc-label-button').textContent,'note:');
+ assert.equal(fallback.doc.querySelector('.cc-label-button').textContent,'📝 note:');
+});
+
+test('emoji updates preserve two editors and live buttons, selection, drafts, color and profile lifecycle',async()=>{
+ const state={schemaVersion:2,emojisEnabled:true,items:[{text:'note',color:'#123456',emoji:'👩🏽‍💻'}]};
+ const h=create({settings:state,html:'<form><textarea name="comment[body]"></textarea></form><form><textarea name="comment[body]"></textarea></form>'});await h.flush();
+ const editors=h.doc.querySelectorAll('textarea'),buttons=h.doc.querySelectorAll('.cc-label-button');
+ editors[0].value='Draft';editors[1].value='Other';editors[0].focus();editors[0].setSelectionRange(1,3);
+ await h.changeSettings({...state,emojisEnabled:false});
+ assert.deepEqual(h.doc.querySelectorAll('.cc-label-button'),buttons);assert.deepEqual(buttons.map(b=>b.textContent),['note:','note:']);
+ assert.equal(h.doc.activeElement,editors[0]);assert.equal(editors[0].selectionStart,1);assert.equal(editors[0].selectionEnd,3);assert.equal(editors[0].value,'Draft');assert.equal(editors[1].value,'Other');
+ buttons[0].click();assert.equal(editors[0].value,'note: Draft');
+ await h.changeSettings({...state,items:[{...state.items[0],emoji:'👍🏽'}]});
+ buttons[0].click();assert.equal(editors[0].value,'👍🏽 note: note: Draft');buttons[0].click();assert.equal(editors[0].value,'👍🏽 note: note: Draft');
+ assert.equal(editors[0].selectionStart,'👍🏽 note: '.length);assert.equal(editors[0].lastEvent.type,'input');
+ for(const panelCss of ['',P.standardCss])await h.changeProfiles([{...P.all()[0],panelCss}]);
+ assert.equal(buttons[1].textContent,'👍🏽 note:');assert.equal(buttons[1].style.getPropertyValue('background'),L.shades('#123456').background);
+ parse(h.doc,'<form><textarea name="comment[body]"></textarea></form>');h.mutate();await h.tick();
+ assert.equal(h.doc.querySelectorAll('.cc-label-panel').length,3);assert.equal(h.doc.querySelectorAll('.cc-label-button')[2].textContent,'👍🏽 note:');
+ await h.navigate('https://github.com/a/b/issues/1');assert.equal(h.doc.querySelector('.cc-label-panel'),null);
+ await h.navigate('https://github.com/a/b/pull/1');assert.equal(h.doc.querySelector('.cc-label-button').textContent,'👍🏽 note:');
+ await h.message({type:'cc-stop'});assert.equal(h.doc.querySelector('.cc-label-panel'),null);
 });

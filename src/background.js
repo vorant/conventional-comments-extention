@@ -82,7 +82,7 @@ async function handle(message, sender) {
     return { ok: true };
   }
   if (!extensionPage(sender)) throw new Error("Действие доступно только в настройках расширения.");
-  if (message.type === "cc-save-labels") return saveLabels(message.items);
+  if (message.type === "cc-save-labels") return saveLabels(message.settings || message.items);
   if (message.type === "cc-refresh") { await serial(reconcile); return { ok: true }; }
   if (["cc-save", "cc-remove", "cc-save-css", "cc-reset-css"].includes(message.type)) {
     return serial(async () => {

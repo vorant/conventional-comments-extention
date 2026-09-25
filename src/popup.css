@@ -1,4 +1,4 @@
-body { min-width: 280px; }
+body { width: 360px; }
 .header-actions { display: flex; gap: 6px; }
 
 .popup {
@@ -38,7 +38,7 @@ h1 {
 .label-row,
 .add-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   gap: 6px;
   align-items: center;
 }
@@ -138,3 +138,12 @@ body[data-theme="dark"] .drag-handle-icon-dark {
 #labels-status:empty { display: none; }
 #labels-status[data-error="true"] { color: var(--cc-popup-danger); }
 #labels-retry { margin-top: 6px; }
+
+[hidden] { display: none !important; }
+.emoji-toggle { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; font-size: 12px; }
+.emoji-toggle input { width: auto; }
+.label-emoji { width: 32px; height: 30px; padding: 0; font-size: 18px; }
+.emoji-actions { display: flex; justify-content: space-between; gap: 8px; }
+#emoji-title { font-size: 14px; overflow-wrap: anywhere; }
+#emoji-current, #emoji-status { font-size: 12px; }
+emoji-picker { width: 100%; height: 360px; --num-columns: 8; }
