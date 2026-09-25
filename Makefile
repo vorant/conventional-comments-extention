@@ -38,5 +38,5 @@ package: ## Создать ZIP расширения в dist/ для перено
 	@command -v node >/dev/null || { echo 'Для определения версии нужен Node.js'; exit 1; }
 	@command -v zip >/dev/null || { echo 'Для упаковки нужна утилита zip'; exit 1; }
 	mkdir -p dist
-	zip -q -r -FS "$(ARCHIVE)" manifest.json src README.md -x '*/.*'
+	zip -q -r -FS "$(ARCHIVE)" manifest.json src README.md README-DEVELOPER.md docs -x '*/.*'
 	@printf 'Архив создан: %s\n' "$(ARCHIVE)"

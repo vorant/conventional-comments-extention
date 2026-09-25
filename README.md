@@ -1,144 +1,49 @@
 # Conventional Comments
 
-Chrome-расширение помогает писать комментарии в GitHub Pull Requests и на настраиваемых сайтах в формате Conventional Comments. Когда пользователь открывает стандартное поле комментария к строке кода, расширение добавляет рядом с ним кнопки labels. Клик по label вставляет префикс вроде `💡 suggestion: ` в начало комментария.
+Add labels such as `suggestion:`, `issue:`, and `question:` to code review comments in Chrome. The extension places label buttons next to the review editor and inserts the selected prefix at the start of your comment. You write and submit the comment using the site's usual controls.
 
-## Возможности
+Based on the original [Conventional Comments](https://conventionalcomments.org/) idea and format. This extension provides configurable labels and optional emoji for that workflow.
 
-Встроенный профиль GitHub и предварительные профили GitLab и Bitbucket:
+## How to use
 
-- страницы GitHub PR, GitLab MR, Bitbucket PR и корпоративные адреса через профили;
-- стандартные комментарии к строкам кода в Pull Request;
-- настройки labels в popup расширения;
-- светлая и темная тема popup;
-- изменение порядка labels перетаскиванием;
-- собственная иконка расширения в Chrome;
-- дефолтные labels `praise`, `nitpick`, `suggestion`, `issue`, `todo`, `question`, `thought`, `chore`, `note`;
-- редактирование, добавление и удаление labels;
-- вставка выбранного label в начало поля комментария.
+1. Open a GitHub pull request and its **Files changed** view.
+2. Open a comment editor next to a line of code.
+3. Click a label, then write your feedback. You can also choose a label after writing: the prefix is added before your text.
+4. Submit the comment or review with GitHub's normal controls.
 
-GitLab и Bitbucket требуют ручной проверки на вашем сайте. AI-подсказки, decorations вроде `(non-blocking)` и публикация в Chrome Web Store не входят в эту версию.
+For example: `💡 suggestion: Return 0 when the list is empty.`
 
-## Локальная установка
+![The installed extension inserts a suggestion prefix above a review comment in a demonstration editor.](docs/screenshots/review-comment.png)
 
-Требуется Chrome 102 или новее.
+*Demo editor with the real extension panel; this is not a screenshot of GitHub.*
 
-1. Откройте `chrome://extensions`.
-2. Включите Developer mode.
-3. Нажмите Load unpacked.
-4. Выберите корневую папку этого проекта.
-5. Откройте GitHub Pull Request и перейдите на вкладку Files changed.
-6. Нажмите кнопку добавления комментария к строке кода.
+## Customize labels
 
-Над стандартным полем комментария должна появиться панель Conventional Comments labels.
+Click the extension's toolbar icon to open **Labels**. Edit names, drag rows to reorder them, add a label with **New label**, or remove one with the trash button. Changes save automatically; wait for **Saved** after an edit.
 
-## Команды разработки
+Use the color swatch to choose a label color. Click the emoji button to the left of a name to search in English or choose **No emoji**. Turn off **Show and insert emoji** to keep your selections but insert plain prefixes. Emoji search works offline. The theme button switches the popup and settings between light and dark.
 
-Команды запускаются из корня проекта. Нужны `make`, Node.js с npm и установленный CLI `openspec`; для упаковки также нужна утилита `zip`. Установка npm-зависимостей не требуется.
+![Labels popup with editable names, emoji buttons, color swatches, reorder handles, and a new-label field.](docs/screenshots/labels-popup.png)
 
-```bash
-make                 # Справка по командам
-make test            # npm test
-make spec-check      # openspec validate --specs --strict
-make check           # Обе проверки
-make changes         # Список активных OpenSpec changes
-make specs           # Список основных спецификаций
-make change-check CHANGE=<имя-change>
-make change-instructions CHANGE=<имя-change>
-make package         # ZIP расширения в dist/
-```
+Labels are shared across site profiles. Readers see the inserted text without installing the extension.
 
-### Перенос на другой компьютер
+## Company repositories
 
-Запустите `make package`. Архив `dist/conventional-comments-<версия>.zip` содержит `manifest.json`, папку `src` (включая иконки, шрифт, локальный пикер, русский каталог и их лицензии) и README. Версия берётся из `manifest.json`. Тесты, OpenSpec и служебные файлы проекта в архив не включаются. Упаковка не запускает проверки; перед передачей архива выполните `make check`.
+Configure your browser for your company's site; no repository files or server plugin are needed.
 
-На другом компьютере распакуйте ZIP в отдельную постоянную папку. Откройте `chrome://extensions`, включите Developer mode, нажмите Load unpacked и выберите папку с распакованным `manifest.json`. Node.js, npm и OpenSpec для установки расширения не нужны. Папку сохраняйте, пока пользуетесь расширением. Архив содержит только файлы расширения; настройки браузера в него не входят.
+1. Open the popup and click the gear button, **Settings**.
+2. Select the matching **Profile**: GitHub, GitLab, or Bitbucket.
+3. Set **Site URL** to the site origin, such as `https://git.company.example`, without a repository path.
+4. Set **Pages (one path per line)** to the review paths. For GitLab, use `/*/-/merge_requests/*`; `*` matches any part of a path.
+5. Keep the preset **Editor CSS selector** unless your site's editor needs a different one. Choose **Above editor** or **Below editor** under **Panel position**.
+6. Wait for **Saved**, click **Allow site access**, and approve Chrome's request. Open or reload a review page and its comment editor.
 
-## Настройки labels
+Each profile has one site address: changing it replaces that profile's previous address. GitLab and Bitbucket profiles are **preview support** and need checking on your site. Use **Markdown mode** in GitLab; a different editor type may remain incompatible even after changing its selector.
 
-Нажмите иконку расширения в Chrome, чтобы открыть popup настроек. В popup можно:
+![GitLab profile configured for an example company origin, with review paths and the Allow site access button.](docs/screenshots/company-settings.png)
 
-- изменить текст любого label, например добавить emoji или заменить `suggestion` на другое слово;
-- выбрать цвет label через цветной образец рядом с названием: откроется готовый пикер браузера;
-- выбрать Unicode-эмодзи для записи через кнопку слева от названия: поиск и интерфейс пикера на русском работают без сети;
-- удалить символ через «Без эмодзи» или отключить все символы переключателем «Показывать и вставлять эмодзи»;
-- добавить новый непустой label;
-- поменять порядок labels перетаскиванием строк;
-- удалить лишние labels через красную иконку корзины, включая все элементы списка;
-- переключить popup между светлой и темной темой.
+*Example configuration before granting access. Saving settings alone does not grant site access.*
 
-Расширение сохраняет список labels в настройках браузера. Если список еще не меняли, используется дефолтный набор Conventional Comments.
+## Developer documentation
 
-Стандартные labels сразу имеют цвета: praise — зелёный, nitpick — серый, suggestion — синий, issue — красный, todo — оранжевый, question — фиолетовый, thought — сиреневый, chore — серо-коричневый, note — бирюзовый. Новый label начинает с нейтрального серого. Цвет сохраняется при переименовании и перетаскивании; одинаковые названия можно раскрасить независимо.
-
-По умолчанию включены эмодзи: 👍 praise, 🔍 nitpick, 💡 suggestion, 🚨 issue, ✅ todo, ❓ question, 💭 thought, 🔧 chore, 📝 note. При чтении прежних строковых или цветовых настроек эти точные названия получают стандартные символы, остальные — пустой символ. Новая запись всегда создаётся без эмодзи, даже если названа `praise`. Выбор сохраняется при переименовании и переносе; дубликаты независимы. «Без эмодзи» удаляет символ окончательно до следующего выбора. Закрытие пикера через «Назад» или Escape сохраняет прежний выбор и возвращает фокус.
-
-Общий переключатель включён по умолчанию. Выключение сохраняет выбранные символы и позволяет редактировать их в popup, но панели и будущие вставки используют `suggestion: ` вместо `💡 suggestion: `. Символ в самом тексте label, например `idea💡`, переключатель не удаляет. Уже опубликованные комментарии и открытые черновики автоматически не меняются. Повторный клик по идентичному префиксу не дублирует его; другой выбранный префикс добавляется перед прежним текстом.
-
-Эмодзи вставляются обычным Unicode-текстом и видны читателю без расширения и Nerd Fonts. Рисунок и поддержка новых символов зависят от ОС и шрифта читателя; одинаковый внешний вид на всех платформах не гарантируется. При ошибке открытия пикера доступны «Повторить загрузку» и возврат к настройкам.
-
-Настройки сохраняются в версии 2 (`ccLabelSettings`) вместе с цветами, символами и общим флагом; строковая проекция `ccLabels` сохраняется для прежних потребителей. Простое чтение старых данных не записывает миграцию. Для отката на цветовую версию 1 сначала экспортируйте `ccLabelSettings` и вручную преобразуйте запись в `{schemaVersion:1, items:[{text,color}]}`, удалив emoji и emojisEnabled; автоматического downgrade нет. Старая цветовая версия блокирует неизвестную v2. Пустые списки, порядок, цвета и тема при обновлении сохраняются.
-
-Из одного выбранного цвета расширение получает фон, текст и рамку кнопки, подходящие для светлой или тёмной схемы сайта. Тема popup не переключает тему сайта. Изменения сохраняются автоматически; дождитесь статуса «Сохранено». При ошибке текущий черновик остаётся в открытом popup и доступна кнопка «Повторить сохранение». Уже отправленная запись продолжается после закрытия popup; быстрые изменения объединяются, поэтому подтверждение может занять несколько секунд.
-
-Цвета общие для всех профилей и обновляются на открытых панелях без изменения комментариев. Они имеют приоритет над CSS профиля, включая `!important`, hover/focus и пустое поле CSS. CSS по-прежнему задаёт размеры, отступы, шрифт, видимость и геометрию рамки. Переходы кнопок отключены, чтобы CSS-переход временно не подменял выбранный цвет. Ни «Восстановить» CSS, ни «Восстановить профиль» не сбрасывают цвета labels.
-
-
-## Профили сайтов
-
-Нажмите gear «Настройки» справа от переключателя темы в popup и выберите GitHub, GitLab или Bitbucket. Настройки открываются отдельной вкладкой и остаются доступны после закрытия popup. Их также можно открыть через «Сведения» → «Параметры расширения» в chrome://extensions. Страница использует тему popup и сразу обновляется при её переключении. Все три профиля постоянно включены; их названия фиксированы.
-
-Доступны настройки:
-
-- **Адрес сайта** — полный `https://` или `http://` адрес без пути, например `https://git.company.ru`.
-- **Страницы** — пути по одному на строку, например `/*/-/merge_requests/*`. Символ `*` означает любую часть пути.
-- **CSS-селектор редактора** — например `textarea.review-comment` или `textarea[name="note[note]"]`. Можно перечислить альтернативы через запятую.
-- **Положение панели** — «Над редактором» или «Под редактором».
-- **Стили панели** — CSS панели и кнопок, отдельно для каждого профиля; цвета labels задаются в popup.
-
-Корректные изменения сохраняются автоматически. Дождитесь статуса «Сохранено». Неверный адрес или селектор остаётся в поле для исправления, а последняя рабочая конфигурация продолжает действовать. После ошибки записи измените поле для повторного сохранения. «Восстановить профиль» сбрасывает выбранный профиль, включая CSS, к предустановке, не затрагивая остальные профили, labels и тему.
-
-В блоке «Стили панели» сразу показан стандартный CSS: `.cc-label-panel` оформляет панель, `.cc-label-button` — кнопки. Пользовательский CSS заменяет стандартные правила профиля: удалённое правило больше не применяется. Исключение — приоритетные цвета labels. Изменения автоматически сохраняются; отдельный статус показывает результат. Пустое поле сохраняется как отсутствие стилей профиля; цвета labels продолжают применяться. Незавершённые и ошибочные правила тоже сохраняются исходным текстом; браузер может их игнорировать.
-
-«Восстановить» внутри блока возвращает только стили выбранного профиля. Остальные поля и их черновики сохраняются, даже если адрес сейчас невалиден. Изменение и восстановление CSS обновляют уже открытые панели без перезагрузки страницы и изменения комментариев. Произвольные селекторы могут затрагивать сайт; используйте классы панели и кнопок. Диагностика имеет отдельные стандартные стили. Пользовательская копия CSS не получает будущие изменения стандартов до восстановления.
-
-После сохранения адреса нажмите «Разрешить доступ к сайту». Автосохранение само не запрашивает разрешений; отказ сохраняет настройки, но панель без доступа не подключается. Разрешения можно отозвать в настройках расширения Chrome.
-
-GitHub сохраняет штатную обёртку поля. GitLab рассчитан на textarea в Markdown-режиме, Bitbucket — на экспериментальный визуальный редактор. Тип редактора и внутреннее размещение задаются предустановкой. Если корпоративная версия использует другой тип редактора, одного изменения селектора может быть недостаточно; такая совместимость не гарантируется.
-
-Все сайты используют один список labels. Профили хранятся локально, labels и тема — в синхронизируемых настройках. При пересечении адресов и масок выбирается первый профиль в порядке GitHub, GitLab, Bitbucket.
-
-### Переход со старых настроек
-
-Прежние списки labels сохраняют текст и порядок: стандартные названия получают палитру, пользовательские — нейтральный серый; пустой список остаётся пустым. Сохранённый CSS профилей не переписывается, но кнопки сразу получают цвета. После обновления unpacked extension перезагрузите расширение и старые вкладки.
-
-Новая версия хранит записи текста/цвета и совместимую строковую копию списка. При откате прежняя версия показывает этот список без цветов. Правки, сделанные после отката в старой версии, не объединяются с новыми цветовыми настройками при повторном обновлении.
-
-
-Старые пользовательские профили больше не отображаются и не применяются, но их данные остаются в хранилище. Для корпоративного сайта измените соответствующий встроенный профиль. Допустимые адреса, маски, селекторы и положения над/под сохраняются. Старые названия, выключение и скрытые параметры заменяются предустановками; положение внутри контейнера возвращается к положению над редактором. Чтение настроек не переписывает данные. Labels и тема не меняются.
-
-## Диагностика
-
-Корректность полей проверяется при вводе, доступ к сайту отображается отдельно.
-
-Если редактор найден, а место панели нет, расширение покажет сообщение с действием «Открыть настройки профиля»: оно открывает отдельную вкладку настроек с выбранным соответствующим профилем. Оно не повторяется после закрытия для той же ошибки и ревизии профиля в текущем документе. Если редактор ещё не открыт или список labels пустой, автоматической ошибки нет. Когда место появляется или настройка исправлена, панель восстанавливается.
-
-Подробности совместимости, источники селекторов и ручная проверка: [профили сайтов](docs/site-profiles.md).
-
-## Проверка вручную
-
-- На GitHub Pull Request панель появляется только после открытия поля комментария к строке.
-- Кнопка `suggestion:` вставляет `suggestion: ` в пустое поле.
-- Кнопка `question:` вставляет `question: ` перед уже введенным текстом.
-- Измененный в popup label появляется в новых полях комментариев и вставляется как `<label>: `.
-- Переключатель темы меняет popup между светлой и темной темой и сохраняет выбор.
-- Labels в popup можно перетаскивать, и новый порядок сохраняется для панели комментария.
-- Удаление label в popup выполняется через красную иконку корзины.
-- В панели Chrome у расширения отображается собственная иконка расширения.
-- Если в popup удалить все labels, пустая панель у поля комментария не появляется.
-- Отправка и отмена комментария продолжают работать стандартными кнопками GitHub.
-- Проверьте автосохранение быстрых изменений, смену профиля, сброс и сохранение значения после повторного открытия страницы настроек.
-- Ручная приёмка GitLab/Bitbucket описана в [инструкции проверки](docs/site-profiles.md).
-
-## Документация
-
-Документация проекта ведется на русском языке. Формат Conventional Comments описан на сайте: https://conventionalcomments.org/
+See [README-DEVELOPER.md](README-DEVELOPER.md) for local installation, development commands, packaging, and technical reference.

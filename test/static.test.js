@@ -84,19 +84,25 @@ test("popup static assets are wired without external dependencies", () => {
   assert.ok(fs.existsSync(fontLicensePath));
 });
 
-test("README documents site profiles in Russian", () => {
+test("user documentation links to developer reference and bundled screenshots", () => {
   const readme = readText("README.md");
-
-  assert.match(readme, /GitHub Pull Requests/);
-  assert.match(readme, /настройки labels/);
-  assert.match(readme, /перетаскив/);
-  assert.match(readme, /иконк[а-я]+ расширения/);
-  assert.match(readme, /светл[а-я]+ и темн[а-я]+ тем/);
-  assert.match(readme, /иконку корзины/);
-  assert.match(readme, /сохраняются автоматически/);
-  assert.doesNotMatch(readme, /Проверить профиль|создайте собственный профиль/);
-  assert.match(readme, /предварительн/);
-  assert.match(readme, /Локальная установка/);
+  const listing = readText("docs/chrome-web-store-description.txt");
+  for (const text of [readme, listing]) {
+    assert.doesNotMatch(text, /[А-Яа-яЁё]/);
+    assert.match(text, /https:\/\/conventionalcomments\.org\//);
+    assert.match(text, /Allow site access/);
+    assert.match(text, /preview support/);
+  }
+  assert.match(readme, /\]\(README-DEVELOPER\.md\)/);
+  assert.match(readText("README-DEVELOPER.md"), /## Команды разработки/);
+  assert.match(readText("README-DEVELOPER.md"), /## Локальная установка/);
+  const images = [...readme.matchAll(/!\[([^\]]+)\]\(([^)]+)\)/g)];
+  assert.ok(images.length >= 3);
+  for (const [, alt, file] of images) {
+    assert.ok(alt.trim());
+    const bytes = fs.readFileSync(path.join(rootDir, file));
+    assert.equal(bytes.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", file);
+  }
 });
 
 test("options owns the profile form and both pages load shared theme assets", () => {

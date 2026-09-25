@@ -1,0 +1,18 @@
+Conventional Comments adds labels to code review comments. Choose suggestion, issue, question, or another label from a panel next to the editor to insert its prefix. Write your feedback and submit it with the site's usual controls.
+
+HOW TO USE
+Open a GitHub pull request, go to Files changed, and open a comment editor next to a line. Click a label before or after writing your feedback. For example:
+
+suggestion: Return 0 when the list is empty.
+
+CUSTOMIZE LABELS
+Open the extension's toolbar popup to edit, add, remove, or reorder labels. Choose colors and optional emoji for each label, or turn off “Show and insert emoji” for plain prefixes. Emoji search works offline in English. Changes save automatically, and labels are shared across site profiles. Readers see the inserted text without needing the extension.
+
+COMPANY REPOSITORIES
+Open Settings from the popup's gear button and choose the matching GitHub, GitLab, or Bitbucket profile. Set Site URL to your company's site origin, such as https://git.company.example, and set the review page paths. For GitLab, use /*/-/merge_requests/*.
+
+Wait for Saved, click Allow site access, approve Chrome's request, and reopen or reload the review page. No repository files or server plugin are required. Each profile has one site address; changing it replaces the previous address. Adjust the editor CSS selector only if your site's editor requires it.
+
+GitLab and Bitbucket profiles are preview support and require checking on your site. Use Markdown mode in GitLab. Compatibility with every company editor is not guaranteed.
+
+Based on the original Conventional Comments idea and format: https://conventionalcomments.org/
