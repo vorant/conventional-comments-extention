@@ -1,5 +1,41 @@
-.cc-profile-notices { position: fixed; z-index: 2147483647; right: 16px; bottom: 16px; width: min(400px, calc(100vw - 32px)); display: grid; gap: 8px; }
-.cc-profile-notice { max-width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #9a6700; border-radius: 8px; background: #fff8c5; color: #24292f; box-shadow: 0 4px 20px #0003; font: 13px/1.5 system-ui, sans-serif; }
-.cc-profile-notice p { margin: 0 0 8px; }
-.cc-profile-notice button { font: inherit; color: #24292f; background: #fff; border: 1px solid #9a6700; border-radius: 4px; padding: 4px 8px; margin: 4px 4px 0 0; cursor: pointer; }
-.cc-profile-notice button:focus-visible { outline: 2px solid #0969da; outline-offset: 2px; }
+.cc-profile-notices {
+  position: fixed;
+  z-index: 2147483647;
+  right: 16px;
+  bottom: 16px;
+  width: min(400px, calc(100vw - 32px));
+  display: grid;
+  gap: 8px;
+}
+
+.cc-profile-notice {
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid #9a6700;
+  border-radius: 8px;
+  background: #fff8c5;
+  color: #24292f;
+  box-shadow: 0 4px 20px #0003;
+  font: 13px/1.5 system-ui, sans-serif;
+}
+
+.cc-profile-notice p {
+  margin: 0 0 8px;
+}
+
+.cc-profile-notice button {
+  font: inherit;
+  color: #24292f;
+  background: #fff;
+  border: 1px solid #9a6700;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin: 4px 4px 0 0;
+  cursor: pointer;
+}
+
+.cc-profile-notice button:focus-visible {
+  outline: 2px solid #0969da;
+  outline-offset: 2px;
+}

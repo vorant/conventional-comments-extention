@@ -7,7 +7,7 @@
   gap: 6px;
   align-items: center;
   /* margin: 8px 0; */
-  /* padding: 8px; */
+  padding: 8px;
   width: 100%;
   /* border: 1px solid var(--borderColor-default, #d0d7de); */
   /* border-radius: 6px; */
