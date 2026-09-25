@@ -84,8 +84,8 @@ test('no open editor is normal and removed explicit diagnostics is ignored',asyn
 test('automatic placement notice preserves text and uses available settings',async()=>{
   const h=create();await h.flush();const editor=h.doc.querySelector('textarea');editor.value='untouched';
   await h.changeProfiles([{...P.all()[0],containerSelector:'.missing'}]);await h.tick(510);
-  const notice=h.doc.querySelector('.cc-profile-notice');assert.ok(notice);assert.match(notice.textContent,/предустановкой/);
-  assert.doesNotMatch(notice.textContent,/Выберите другой тип|containerSelector|anchorSelector|Проверить профиль/);
+  const notice=h.doc.querySelector('.cc-profile-notice');assert.ok(notice);assert.match(notice.textContent,/preset/);
+  assert.doesNotMatch(notice.textContent,/Choose another type|containerSelector|anchorSelector|Check profile/);
   assert.equal(editor.value,'untouched');
 });
 test('profile changes reposition active editor without changing text',async()=>{
@@ -203,4 +203,15 @@ test('emoji updates preserve two editors and live buttons, selection, drafts, co
  await h.navigate('https://github.com/a/b/issues/1');assert.equal(h.doc.querySelector('.cc-label-panel'),null);
  await h.navigate('https://github.com/a/b/pull/1');assert.equal(h.doc.querySelector('.cc-label-button').textContent,'👍🏽 note:');
  await h.message({type:'cc-stop'});assert.equal(h.doc.querySelector('.cc-label-panel'),null);
+});
+
+test('English content UI inserts saved Cyrillic labels without translating drafts',async()=>{
+ const settings={schemaVersion:2,emojisEnabled:true,items:[{text:'вопрос',color:'#123456',emoji:'❓'}]};
+ const h=create({settings});await h.flush();const editor=h.doc.querySelector('textarea');editor.value='Черновик';editor.focus();editor.setSelectionRange(1,3);
+ await h.message({type:'cc-reload'});assert.equal(editor.value,'Черновик');assert.equal(editor.selectionStart,1);assert.equal(editor.selectionEnd,3);
+ const button=h.doc.querySelector('.cc-label-button');assert.equal(button.textContent,'❓ вопрос:');button.click();assert.equal(editor.value,'❓ вопрос: Черновик');
+ await h.changeProfiles([{...P.all()[0],containerSelector:'.missing'}]);await h.tick(510);
+ const notice=h.doc.querySelector('.cc-profile-notice');assert.match(notice.textContent,/No panel location found/);
+ assert.deepEqual(notice.querySelectorAll('button').map(b=>b.textContent),['Open profile settings','Close']);
+ assert.equal(editor.value,'❓ вопрос: Черновик');
 });

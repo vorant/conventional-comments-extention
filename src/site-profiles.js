@@ -18,7 +18,7 @@
   function config(value) {
     if (value === undefined) return { schemaVersion: 1, overrides: {}, custom: [], revision: 0 };
     if (!value || value.schemaVersion !== 1 || !value.overrides || typeof value.overrides !== "object" || Array.isArray(value.overrides) || !Array.isArray(value.custom)) {
-      throw new Error("Неизвестный формат профилей. Настройки не перезаписаны.");
+      throw new Error("Unknown profile format. Settings have not been overwritten.");
     }
     return clone(value);
   }
@@ -74,24 +74,24 @@
   }
   function validate(input, profiles, doc) {
     const base = defaults.find((p) => p.id === input?.id);
-    if (!base) throw new Error("Неизвестный встроенный профиль.");
+    if (!base) throw new Error("Unknown built-in profile.");
     const p = { ...clone(base), builtin: true };
     for (const field of editable) if (input[field] !== undefined) p[field] = clone(input[field]);
     let url;
-    try { url = new URL(p.origin); } catch { throw new Error("Адрес: укажите полный HTTP(S) адрес сайта."); }
+    try { url = new URL(p.origin); } catch { throw new Error("Site URL: enter a full HTTP(S) site URL."); }
     if (!/^https?:$/.test(url.protocol) || url.hostname.includes("*") || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
-      throw new Error("Адрес: нужен только адрес сайта, без пути, пароля или параметров.");
+      throw new Error("Site URL: enter only the site origin, without a path, credentials, or parameters.");
     }
     p.origin = url.origin;
     if (!Array.isArray(p.paths) || !p.paths.length || p.paths.length > 20 || p.paths.some((s) => typeof s !== "string" || !s.startsWith("/") || s.length > 250 || /[?#\s]/.test(s))) {
-      throw new Error("Страницы: задайте пути с начальным /; разрешена маска * (до 20 путей по 250 символов).");
+      throw new Error("Pages: paths must start with /; use * as a wildcard (up to 20 paths, 250 characters each).");
     }
-    if (typeof p.editorSelector !== "string" || p.editorSelector.length > 2000 || !p.editorSelector.trim()) throw new Error("Селектор редактора: укажите CSS-селектор.");
+    if (typeof p.editorSelector !== "string" || p.editorSelector.length > 2000 || !p.editorSelector.trim()) throw new Error("Editor selector: enter a CSS selector.");
     p.editorSelector = p.editorSelector.trim();
     if (doc) {
-      try { doc.querySelector(p.editorSelector); } catch { throw new Error("Селектор редактора: неверный CSS-селектор."); }
+      try { doc.querySelector(p.editorSelector); } catch { throw new Error("Editor selector: invalid CSS selector."); }
     }
-    if (!["before", "after"].includes(p.placement)) throw new Error("Неизвестное положение панели.");
+    if (!["before", "after"].includes(p.placement)) throw new Error("Unknown panel position.");
     return p;
   }
   function save(value, p) {
@@ -103,8 +103,8 @@
     return data;
   }
   function saveCss(value, id, css, reset = false) {
-    if (!defaults.some((p) => p.id === id)) throw new Error("Неизвестный встроенный профиль.");
-    if (!reset && typeof css !== "string") throw new Error("CSS должен быть строкой.");
+    if (!defaults.some((p) => p.id === id)) throw new Error("Unknown built-in profile.");
+    if (!reset && typeof css !== "string") throw new Error("CSS must be a string.");
     const data = config(value);
     const item = { ...data.overrides[id] };
     if (reset) delete item.panelCss;
@@ -114,7 +114,7 @@
     return data;
   }
   function remove(value, id) {
-    if (!defaults.some((p) => p.id === id)) throw new Error("Неизвестный встроенный профиль.");
+    if (!defaults.some((p) => p.id === id)) throw new Error("Unknown built-in profile.");
     const data = config(value);
     data.revision = (data.revision || 0) + 1;
     delete data.overrides[id];

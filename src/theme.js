@@ -63,7 +63,7 @@
     if (!toggle) return;
     toggle.className = "icon-button theme-toggle nf-icon";
     toggle.textContent = theme === "dark" ? ICONS.sun : ICONS.moon;
-    const action = theme === "dark" ? "Включить светлую тему" : "Включить тёмную тему";
+    const action = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
     toggle.setAttribute("aria-label", action);
     toggle.setAttribute("title", action);
     toggle.setAttribute("aria-pressed", String(theme === "dark"));

@@ -17,7 +17,7 @@ test('profiles persist overrides separately and reset without changing labels', 
   assert.equal(P.all(JSON.parse(JSON.stringify(data)))[0].placement,'after');
   assert.equal(P.all(P.remove(data,'github'))[0].placement,'before');
   assert.equal(data.ccLabels,undefined);
-  assert.throws(()=>P.config({schemaVersion:2}),/формат/);
+  assert.throws(()=>P.config({schemaVersion:2}),/format/);
 });
 test('only built-ins apply, hidden overrides are ignored and matching follows default order', () => {
   const data={schemaVersion:1,revision:4,custom:[custom()],overrides:{github:{name:'Other',enabled:false,editorAdapter:'rich-text',containerSelector:'.old',anchorSelector:'.old',anchorMode:'editor',placement:'after',origin:'https://git.example:8443',paths:['/review/*'],editorSelector:'.review'},gitlab:{origin:'https://git.example:8443',paths:['/*']}}};
@@ -92,7 +92,7 @@ test('rich text adapter delegates insertion to editing command and never assigns
   doc.execCommand=(...args)=>{command=args;return true;};
   const before=editor.textContent;
   A.insert(editor,'note: ','rich-text');assert.deepEqual(command,['insertText',false,'note: ']);assert.equal(editor.textContent,before);
-  doc.execCommand=()=>false;assert.throws(()=>A.insert(editor,'note: ','rich-text'),/отклонил/);
+  doc.execCommand=()=>false;assert.throws(()=>A.insert(editor,'note: ','rich-text'),/rejected/);
 });
 test('placement never inserts toolbar inside an editable rich-text subtree',()=>{
   const doc=fixture();doc.execCommand=()=>true;
@@ -100,7 +100,7 @@ test('placement never inserts toolbar inside an editable rich-text subtree',()=>
   assert.equal(E.inspect(doc,p,A).status,'placement');
 });
 test('wildcard hostname is rejected rather than requesting unintended hosts',()=>{
-  assert.throws(()=>P.validate({...P.defaults[0],origin:'https://*.example.com'},[]),/Адрес/);
+  assert.throws(()=>P.validate({...P.defaults[0],origin:'https://*.example.com'},[]),/Site URL/);
 });
 
 test('panel CSS distinguishes absent, empty and invalid values without losing other overrides', () => {

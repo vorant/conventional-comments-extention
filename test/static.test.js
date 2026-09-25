@@ -104,7 +104,7 @@ test("options owns the profile form and both pages load shared theme assets", ()
   const options = readText("src/options.html");
   assert.doesNotMatch(popup, /profile-form|site-settings|profile-settings.js|site-profiles.js/);
   assert.ok(popup.indexOf('id="theme-toggle"') < popup.indexOf('id="open-settings"'));
-  assert.match(popup, /id="open-settings"[^>]*aria-label="Настройки"[^>]*title="Настройки"/);
+  assert.match(popup, /id="open-settings"[^>]*aria-label="Settings"[^>]*title="Settings"/);
   assert.match(options, /id="profile-form"/);
   assert.doesNotMatch(options, /<details|theme-toggle|label-form/);
   for (const html of [popup, options]) {
@@ -112,6 +112,27 @@ test("options owns the profile form and both pages load shared theme assets", ()
     assert.match(html, /src="theme.js"/);
     for (const [, asset] of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
       assert.ok(fs.existsSync(path.join(rootDir, "src", asset)), asset);
+    }
+  }
+});
+
+test('extension pages and metadata use English without changing host access', () => {
+  const manifest = JSON.parse(readText('manifest.json'));
+  assert.equal(manifest.name, 'Conventional Comments');
+  assert.match(manifest.description, /^Add Conventional Comments labels to code reviews/);
+  assert.equal(manifest.minimum_chrome_version, '102');
+  assert.deepEqual(manifest.host_permissions, ['https://github.com/*']);
+  for (const file of ['src/popup.html', 'src/options.html']) {
+    const html = readText(file);
+    assert.match(html, /<html lang="en">/);
+    assert.doesNotMatch(html, /[А-Яа-яЁё]/);
+  }
+  assert.match(readText('src/options.html'), /<title>Settings — Conventional Comments<\/title>/);
+  // Audit quoted own UI strings, allowing Unicode user data and source comments.
+  for (const name of ['popup', 'profile-settings', 'theme', 'content-script', 'panel-engine', 'editor-adapters', 'background', 'label-settings', 'site-profiles']) {
+    const source = readText(`src/${name}.js`);
+    for (const match of source.matchAll(/(["'`])(?:\\.|(?!\1)[^\\])*?\1/g)) {
+      assert.doesNotMatch(match[0], /[А-Яа-яЁё]/, `${name}: ${match[0]}`);
     }
   }
 });

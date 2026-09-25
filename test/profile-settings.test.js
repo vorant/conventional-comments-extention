@@ -23,7 +23,7 @@ test('each editable field autosaves, duplicate change events do not save twice',
     h.edit(field,value);h.edit(field,value,'change');await flush();
     assert.deepEqual(h.getConfig().overrides.github[field],field==='paths'?value.split('\n'):value);
   }
-  assert.equal(h.calls.filter(([,m])=>m.type==='cc-save').length,4);assert.equal(h.el('profile-status').textContent,'Сохранено');
+  assert.equal(h.calls.filter(([,m])=>m.type==='cc-save').length,4);assert.equal(h.el('profile-status').textContent,'Saved');
 });
 test('invalid fields remain visible and do not replace last saved configuration',async()=>{
   const h=setup();await flush();h.edit('placement','after');await flush();const before=JSON.stringify(h.getConfig());
@@ -33,7 +33,7 @@ test('rapid edits and switching retain per-profile drafts and ignore old respons
   const h=setup({delayed:true});await flush();h.edit('origin','https://first.example');h.edit('origin','https://last.example');
   h.edit('list','gitlab','change');h.edit('placement','after');
   h.pending.shift()();await flush();assert.equal(h.el('profile-origin').value,'https://gitlab.com');
-  h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Сохранение…');
+  h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Saving…');
   h.pending.shift()();await flush();h.edit('list','github','change');
   assert.equal(h.el('profile-origin').value,'https://last.example');assert.equal(h.getConfig().overrides.github.origin,'https://last.example');assert.equal(h.getConfig().overrides.gitlab.placement,'after');
 });
@@ -47,21 +47,21 @@ test('responses do not render the field again, invalid newer draft masks old suc
 });
 test('reset while saving supersedes old responses and later edits follow reset',async()=>{
   const h=setup({delayed:true});await flush();h.edit('origin','https://old.example');h.el('profile-reset').click();
-  assert.equal(h.el('profile-origin').value,'https://github.com');h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Сохранение…');
+  assert.equal(h.el('profile-origin').value,'https://github.com');h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Saving…');
   h.pending.shift()();await flush();assert.equal(P.all(h.getConfig())[0].origin,'https://github.com');
   h.el('profile-reset').click();h.edit('placement','after');h.pending.shift()();await flush();h.pending.shift()();await flush();assert.equal(P.all(h.getConfig())[0].placement,'after');
 });
 test('write failure can retry the same snapshot through another field event',async()=>{
   const h=setup({delayed:true});await flush();h.edit('placement','after');h.pending.shift()(false);await flush();
   assert.match(h.el('profile-status').textContent,/Ошибка записи/);assert.equal(h.el('profile-connect').disabled,true);
-  h.edit('placement','after','change');h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Сохранено');
+  h.edit('placement','after','change');h.pending.shift()();await flush();assert.equal(h.el('profile-status').textContent,'Saved');
 });
 test('access requires current confirmed snapshot and is requested synchronously only on click',async()=>{
   const h=setup({delayed:true});await flush();h.edit('origin','https://other.example');h.el('profile-connect').click();assert.equal(h.calls.filter(([t])=>t==='request').length,0);
   h.pending.shift()();await flush();assert.equal(h.el('profile-connect').disabled,false);
   h.el('profile-connect').click();assert.deepEqual(Array.from(h.calls.find(([t])=>t==='request')[1].origins),['https://other.example/*']);await flush();
-  assert.match(h.el('profile-status').textContent,/не предоставлен/);assert.equal(h.getConfig().overrides.github.origin,'https://other.example');
-  h.setPermission(true);h.el('profile-connect').click();await flush();h.pending.shift()();await flush();assert.match(h.el('profile-access').textContent,/разрешён/);
+  assert.match(h.el('profile-status').textContent,/not granted/);assert.equal(h.getConfig().overrides.github.origin,'https://other.example');
+  h.setPermission(true);h.el('profile-connect').click();await flush();h.pending.shift()();await flush();assert.match(h.el('profile-access').textContent,/granted/);
 });
 
 for (const [search, expected] of [['?profile=gitlab','gitlab'],['?profile=bitbucket','bitbucket'],['','github'],['?profile=unknown','github']]) {
@@ -89,9 +89,9 @@ test('CSS editor shows actual defaults and accessible controls',async()=>{
   const h=setup();await flush();
   assert.equal(h.el('profile-panelCss').value,P.standardCss);
   assert.equal(h.el('profile-panelCss').getAttribute('spellcheck'),'false');
-  assert.equal(h.doc.querySelector('label[for="profile-panelCss"]').textContent,'CSS панели и кнопок');
-  assert.equal(h.el('profile-css-reset').textContent,'Восстановить');
-  assert.equal(h.el('profile-reset').textContent,'Восстановить профиль');
+  assert.equal(h.doc.querySelector('label[for="profile-panelCss"]').textContent,'Panel and button CSS');
+  assert.equal(h.el('profile-css-reset').textContent,'Reset styles');
+  assert.equal(h.el('profile-reset').textContent,'Reset profile');
 });
 test('CSS autosaves exact incomplete and empty text independently and survives reopening',async()=>{
   const h=setup();await flush();
@@ -112,10 +112,10 @@ test('rapid CSS edits and switching keep drafts, status and original text',async
   h.edit('list','gitlab','change');h.edit('panelCss','lab');
   h.pending.shift()();h.pending.shift()();await flush();
   assert.equal(h.el('profile-panelCss').value,'lab');
-  assert.equal(h.el('profile-css-status').textContent,'Сохранение…');
+  assert.equal(h.el('profile-css-status').textContent,'Saving…');
   h.pending.shift()();await flush();h.edit('list','github','change');
   assert.equal(h.el('profile-panelCss').value,'  second\n');
-  assert.equal(h.el('profile-css-status').textContent,'Сохранено');
+  assert.equal(h.el('profile-css-status').textContent,'Saved');
 });
 test('CSS reset works with invalid address and preserves other pending drafts',async()=>{
   const h=setup({delayed:true});await flush();
@@ -124,7 +124,7 @@ test('CSS reset works with invalid address and preserves other pending drafts',a
   assert.equal(h.el('profile-origin').value,'bad address');
   assert.equal(h.el('profile-panelCss').value,P.standardCss);
   h.pending.shift()();h.pending.shift()();await flush();
-  assert.equal(h.el('profile-css-status').textContent,'Сохранение…');
+  assert.equal(h.el('profile-css-status').textContent,'Saving…');
   h.pending.shift()();await flush();
   assert.equal(P.all(h.getConfig())[0].placement,'after');
   assert.equal(P.all(h.getConfig())[0].panelCss,P.standardCss);
@@ -135,12 +135,12 @@ test('full reset supersedes both groups and newer edits supersede reset response
   const h=setup({delayed:true});await flush();
   h.edit('placement','after');h.edit('panelCss','old');h.el('profile-reset').click();
   h.pending.shift()();h.pending.shift()();await flush();
-  assert.equal(h.el('profile-css-status').textContent,'Сохранение…');
+  assert.equal(h.el('profile-css-status').textContent,'Saving…');
   assert.equal(h.el('profile-panelCss').value,P.standardCss);
   h.edit('panelCss','new');h.edit('placement','after');
   h.pending.shift()();await flush();
   assert.equal(h.el('profile-panelCss').value,'new');
-  assert.equal(h.el('profile-css-status').textContent,'Сохранение…');
+  assert.equal(h.el('profile-css-status').textContent,'Saving…');
   h.pending.shift()();h.pending.shift()();await flush();
   assert.equal(P.all(h.getConfig())[0].panelCss,'new');
   assert.equal(P.all(h.getConfig())[0].placement,'after');
@@ -151,7 +151,7 @@ test('CSS reset and newer CSS ignore even out-of-order old acknowledgements',asy
   const [old,reset,newer]=h.pending;
   newer();await flush();reset(false);old(false);await flush();
   assert.equal(h.el('profile-panelCss').value,'new');
-  assert.equal(h.el('profile-css-status').textContent,'Сохранено');
+  assert.equal(h.el('profile-css-status').textContent,'Saved');
 });
 test('CSS and full reset errors retain drafts, expose errors and allow retry',async()=>{
   const h=setup({delayed:true});await flush();
@@ -159,10 +159,20 @@ test('CSS and full reset errors retain drafts, expose errors and allow retry',as
   assert.equal(h.el('profile-panelCss').value,'broken {');
   assert.equal(h.el('profile-css-status').getAttribute('data-error'),'true');
   h.edit('panelCss','broken {','change');h.pending.shift()();await flush();
-  assert.equal(h.el('profile-css-status').textContent,'Сохранено');
+  assert.equal(h.el('profile-css-status').textContent,'Saved');
   h.el('profile-reset').click();h.pending.shift()(false);await flush();
   assert.equal(h.el('profile-status').getAttribute('data-error'),'true');
   assert.equal(h.el('profile-css-status').getAttribute('data-error'),'true');
   h.el('profile-css-reset').click();h.pending.shift()();await flush();
   assert.equal(P.all(h.getConfig())[0].panelCss,P.standardCss);
+});
+
+test('English options preserve corporate configuration and Cyrillic CSS without writes or permission requests',async()=>{
+ const saved=P.saveCss(P.save(undefined,{...P.defaults[1],origin:'https://git.company.example',paths:['/группа/*'],editorSelector:'textarea.review',placement:'after'}),'gitlab','/* заметка */\n.cc-label-button { padding: 7px; }');
+ const before=JSON.stringify(saved),h=setup({initialConfig:saved,search:'?profile=gitlab',theme:'dark'});await flush();
+ assert.equal(h.el('profile-origin').value,'https://git.company.example');assert.equal(h.el('profile-paths').value,'/группа/*');
+ assert.equal(h.el('profile-panelCss').value,saved.overrides.gitlab.panelCss);
+ assert.equal(h.el('profile-reset').textContent,'Reset profile');assert.match(h.el('profile-warning').textContent,/Preview profile/);
+ assert.equal(h.doc.body.getAttribute('data-theme'),'dark');assert.deepEqual(h.calls,[]);assert.equal(JSON.stringify(h.getConfig()),before);
+ h.edit('origin','invalid');assert.match(h.el('profile-status').textContent,/Site URL:/);assert.equal(JSON.stringify(h.getConfig()),before);
 });

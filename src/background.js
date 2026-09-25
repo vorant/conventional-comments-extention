@@ -77,11 +77,11 @@ async function handle(message, sender) {
   if (message.type === "cc-config") return { ok: true, profiles: await allowed(P.all(await data())) };
   if (message.type === "cc-open-settings") {
     const profiles = P.all(await data());
-    if (!profiles.some((p) => p.id === message.id)) throw new Error("Профиль не найден.");
+    if (!profiles.some((p) => p.id === message.id)) throw new Error("Profile not found.");
     await chrome.tabs.create({ url: chrome.runtime.getURL(`src/options.html?profile=${encodeURIComponent(message.id)}`) });
     return { ok: true };
   }
-  if (!extensionPage(sender)) throw new Error("Действие доступно только в настройках расширения.");
+  if (!extensionPage(sender)) throw new Error("This action is only available in extension settings.");
   if (message.type === "cc-save-labels") return saveLabels(message.settings || message.items);
   if (message.type === "cc-refresh") { await serial(reconcile); return { ok: true }; }
   if (["cc-save", "cc-remove", "cc-save-css", "cc-reset-css"].includes(message.type)) {
@@ -95,7 +95,7 @@ async function handle(message, sender) {
       return { ok: true };
     });
   }
-  throw new Error("Неизвестная команда.");
+  throw new Error("Unknown command.");
 }
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message?.type?.startsWith("cc-")) return;

@@ -24,11 +24,11 @@
     if (snapshot === lastSnapshot) return;
     lastSnapshot = snapshot;
     const current = ++version;
-    showStatus("Сохранение…");
+    showStatus("Saving…");
     try {
       const result = await chrome.runtime.sendMessage({ type: "cc-save-labels", settings });
-      if (!result?.ok) throw new Error(result?.error || "Нет связи с расширением.");
-      if (current === version) showStatus("Сохранено");
+      if (!result?.ok) throw new Error(result?.error || "Cannot connect to the extension.");
+      if (current === version) showStatus("Saved");
     } catch (error) {
       if (current !== version) return;
       lastSnapshot = null;
@@ -55,7 +55,7 @@
     saveLabels();
   }
   async function loadEmoji() {
-    element("emoji-status").textContent = "Загрузка…";
+    element("emoji-status").textContent = "Loading…";
     element("emoji-retry").hidden = true;
     try {
       if (!emojiPicker) {
@@ -66,7 +66,7 @@
       element("emoji-status").textContent = "";
     } catch {
       pickerLoading = null;
-      element("emoji-status").textContent = "Не удалось загрузить эмодзи. Повторите попытку.";
+      element("emoji-status").textContent = "Could not load emoji. Try again.";
       element("emoji-retry").hidden = false;
     }
   }
@@ -78,7 +78,7 @@
         const detail = await event.detail;
         if (session === emojiSession) chooseEmoji(detail.unicode);
       } catch {
-        if (session === emojiSession) element("emoji-status").textContent = "Не удалось выбрать эмодзи. Повторите выбор.";
+        if (session === emojiSession) element("emoji-status").textContent = "Could not select the emoji. Try again.";
       }
     });
     picker.addEventListener("dragstart", (event) => event.preventDefault());
@@ -89,8 +89,8 @@
     if (dragState) return;
     ++emojiSession;
     emojiTarget = label; emojiOpener = button;
-    element("emoji-title").textContent = "Эмодзи label " + (label.text || "без названия");
-    element("emoji-current").textContent = "Сейчас: " + (label.emoji || "Без эмодзи");
+    element("emoji-title").textContent = "Emoji for label " + (label.text || "unnamed");
+    element("emoji-current").textContent = "Current: " + (label.emoji || "No emoji");
     element("label-form").hidden = true;
     element("emoji-toggle-row").hidden = true;
     element("emoji-view").hidden = false;
@@ -131,7 +131,7 @@
     const handle = document.createElement("span");
     handle.className = "drag-handle";
     handle.setAttribute("aria-hidden", "true");
-    handle.setAttribute("title", "Перетащить label");
+    handle.setAttribute("title", "Drag to reorder label");
 
     const lightIcon = document.createElement("span");
     lightIcon.className = "drag-handle-icon drag-handle-icon-light nf-icon";
@@ -239,8 +239,8 @@
     input.setAttribute("aria-label", "Label");
     input.addEventListener("input", () => {
       label.text = input.value.trim();
-      picker.setAttribute("aria-label", "Цвет label " + (label.text || "без названия"));
-      emojiButton.setAttribute("aria-label", "Эмодзи label " + (label.text || "без названия"));
+      picker.setAttribute("aria-label", "Color for label " + (label.text || "unnamed"));
+      emojiButton.setAttribute("aria-label", "Emoji for label " + (label.text || "unnamed"));
       saveLabels();
     });
 
@@ -248,8 +248,8 @@
     picker.type = "color";
     picker.className = "label-color";
     picker.value = label.color;
-    picker.setAttribute("aria-label", "Цвет label " + (label.text || "без названия"));
-    picker.setAttribute("title", "Выбрать цвет label");
+    picker.setAttribute("aria-label", "Color for label " + (label.text || "unnamed"));
+    picker.setAttribute("title", "Choose label color");
     picker.setAttribute("draggable", "false");
     picker.addEventListener("pointerdown", () => { row.draggable = false; });
     const enableDrag = () => { row.draggable = true; };
@@ -265,7 +265,7 @@
     emojiButton.type = "button";
     emojiButton.className = "label-emoji";
     emojiButton.textContent = label.emoji || "＋";
-    emojiButton.setAttribute("aria-label", "Эмодзи label " + (label.text || "без названия"));
+    emojiButton.setAttribute("aria-label", "Emoji for label " + (label.text || "unnamed"));
     emojiButton.setAttribute("draggable", "false");
     emojiButton.addEventListener("click", () => openEmoji(label, emojiButton));
     emojiButton.addEventListener("pointerdown", () => { row.draggable = false; });
@@ -275,8 +275,8 @@
     removeButton.type = "button";
     removeButton.className = "icon-button delete-button nf-icon";
     removeButton.textContent = ICONS.trash;
-    removeButton.setAttribute("aria-label", "Удалить label");
-    removeButton.setAttribute("title", "Удалить label");
+    removeButton.setAttribute("aria-label", "Delete label");
+    removeButton.setAttribute("title", "Delete label");
     removeButton.addEventListener("click", () => {
       labels.splice(index, 1);
       renderLabels();

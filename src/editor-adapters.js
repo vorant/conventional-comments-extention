@@ -6,7 +6,7 @@
       kind === "rich-text" && editor.getAttribute("contenteditable") === "true" && typeof editor.ownerDocument.execCommand === "function";
   }
   function insert(editor, prefix, kind) {
-    if (!supports(editor, kind)) throw new Error("Этот редактор не поддерживается выбранным способом вставки.");
+    if (!supports(editor, kind)) throw new Error("This editor does not support the selected insertion method.");
     editor.focus();
     if (kind === "textarea") {
       const value = editor.value.startsWith(prefix) ? editor.value : prefix + editor.value;
@@ -24,7 +24,7 @@
     selection.removeAllRanges();
     selection.addRange(range);
     if (!(editor.textContent || "").startsWith(prefix)) {
-      if (!doc.execCommand("insertText", false, prefix)) throw new Error("Редактор отклонил вставку. Этот редактор несовместим с предустановкой сайта.");
+      if (!doc.execCommand("insertText", false, prefix)) throw new Error("The editor rejected the insertion. This editor is incompatible with the site preset.");
     } else {
       const walker = doc.createTreeWalker(editor, 4);
       let remaining = prefix.length, node;

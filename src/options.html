@@ -1,37 +1,37 @@
 <!doctype html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Настройки — Conventional Comments</title>
+    <title>Settings — Conventional Comments</title>
     <link rel="stylesheet" href="shared.css">
     <link rel="stylesheet" href="options.css">
   </head>
   <body>
     <main class="options">
-      <section class="site-settings" aria-label="Профили сайтов">
-        <h1>Настройки сайтов</h1>
-        <label for="profile-list">Профиль</label>
+      <section class="site-settings" aria-label="Site profiles">
+        <h1>Site settings</h1>
+        <label for="profile-list">Profile</label>
         <select id="profile-list"></select>
         <p id="profile-warning" class="profile-help"></p>
         <form id="profile-form" class="profile-form">
-          <label>Адрес сайта<input id="profile-origin" required placeholder="https://git.company.ru"></label>
-          <label>Страницы (один путь на строку)<textarea id="profile-paths" rows="2" required></textarea></label>
-          <p class="profile-help">Например, /*/-/merge_requests/*; * означает любую часть пути.</p>
-          <label>CSS-селектор редактора<input id="profile-editorSelector" required spellcheck="false"></label>
-          <label>Положение панели<select id="profile-placement"><option value="before">Над редактором</option><option value="after">Под редактором</option></select></label>
-          <p class="profile-help">Корректные изменения сохраняются автоматически.</p>
+          <label>Site URL<input id="profile-origin" required placeholder="https://git.company.example"></label>
+          <label>Pages (one path per line)<textarea id="profile-paths" rows="2" required></textarea></label>
+          <p class="profile-help">For example, /*/-/merge_requests/*; * matches any part of a path.</p>
+          <label>Editor CSS selector<input id="profile-editorSelector" required spellcheck="false"></label>
+          <label>Panel position<select id="profile-placement"><option value="before">Above editor</option><option value="after">Below editor</option></select></label>
+          <p class="profile-help">Valid changes are saved automatically.</p>
           <fieldset class="panel-styles">
-            <legend>Стили панели</legend>
-            <label for="profile-panelCss">CSS панели и кнопок</label>
+            <legend>Panel styles</legend>
+            <label for="profile-panelCss">Panel and button CSS</label>
             <textarea id="profile-panelCss" rows="16" spellcheck="false" aria-describedby="profile-css-help"></textarea>
-            <p id="profile-css-help" class="profile-help">CSS: .cc-label-panel — панель, .cc-label-button — кнопки. Изменения сохраняются автоматически. Цвета текста, фона и рамки labels выбираются в popup и имеют приоритет над CSS, даже при пустом поле. Пустое поле убирает остальные собственные стили. Браузер может игнорировать ошибочные и неподдерживаемые правила. Произвольные селекторы могут затронуть страницу сайта.</p>
-            <button id="profile-css-reset" type="button">Восстановить</button>
+            <p id="profile-css-help" class="profile-help">CSS: .cc-label-panel targets the panel; .cc-label-button targets the buttons. Changes are saved automatically. Label text, background, and border colors are set in the popup and take priority over CSS, even when this field is empty. An empty field removes the other custom styles. The browser may ignore invalid or unsupported rules. Other selectors may affect the site itself.</p>
+            <button id="profile-css-reset" type="button">Reset styles</button>
             <p id="profile-css-status" role="status" aria-live="polite"></p>
           </fieldset>
-          <div class="profile-actions"><button id="profile-reset" type="button">Восстановить профиль</button></div>
+          <div class="profile-actions"><button id="profile-reset" type="button">Reset profile</button></div>
         </form>
-        <div class="profile-actions"><button id="profile-connect" type="button" disabled>Разрешить доступ к сайту</button></div>
+        <div class="profile-actions"><button id="profile-connect" type="button" disabled>Allow site access</button></div>
         <p id="profile-access" class="profile-help"></p>
         <p id="profile-status" role="status" aria-live="polite"></p>
       </section>

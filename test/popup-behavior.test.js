@@ -210,7 +210,7 @@ test("popup uses light theme by default", async () => {
   assert.equal(document.body.getAttribute("data-theme"), "light");
   assert.equal(toggle.getAttribute("aria-pressed"), "false");
   assert.equal(toggle.textContent, String.fromCodePoint(0xf186));
-  assert.equal(toggle.getAttribute("aria-label"), "Включить тёмную тему");
+  assert.equal(toggle.getAttribute("aria-label"), "Switch to dark theme");
 });
 
 test("popup applies a saved dark theme", async () => {
@@ -220,7 +220,7 @@ test("popup applies a saved dark theme", async () => {
   assert.equal(document.body.getAttribute("data-theme"), "dark");
   assert.equal(toggle.getAttribute("aria-pressed"), "true");
   assert.equal(toggle.textContent, String.fromCodePoint(0xf05a8));
-  assert.equal(toggle.getAttribute("title"), "Включить светлую тему");
+  assert.equal(toggle.getAttribute("title"), "Switch to light theme");
 });
 
 test("popup toggles and persists light and dark themes", async () => {
@@ -416,8 +416,8 @@ test("popup delete control is a red icon-only trash button", async () => {
 
   assert.match(deleteButton.className, /delete-button/);
   assert.match(deleteButton.className, /nf-icon/);
-  assert.equal(deleteButton.getAttribute("aria-label"), "Удалить label");
-  assert.equal(deleteButton.getAttribute("title"), "Удалить label");
+  assert.equal(deleteButton.getAttribute("aria-label"), "Delete label");
+  assert.equal(deleteButton.getAttribute("title"), "Delete label");
   assert.notEqual(deleteButton.textContent, "Delete");
   assert.ok(deleteButton.textContent.length > 0);
 });
@@ -436,11 +436,11 @@ test('native picker exposes default color and accessible name, rename preserves 
  const h=await createPopupContext(['praise']);
  const picker=rowPicker(h);
  assert.equal(picker.type,'color');assert.equal(picker.value,L.PALETTE.praise);
- assert.equal(picker.getAttribute('aria-label'),'Цвет label praise');
+ assert.equal(picker.getAttribute('aria-label'),'Color for label praise');
  pick(h,'#123456');await waitForAsyncWork();
  const input=renderedLabelInputs(h.document)[0];input.value='renamed';input.dispatchEvent({type:'input'});await waitForAsyncWork();
  assert.deepEqual(h.storedItems[L.KEY].items,[{text:'renamed',color:'#123456',emoji:'👍'}]);
- assert.equal(picker.getAttribute('aria-label'),'Цвет label renamed');
+ assert.equal(picker.getAttribute('aria-label'),'Color for label renamed');
  const reopened=await createPopupContext(undefined,undefined,{stored:h.storedItems});
  assert.equal(rowPicker(reopened).value,'#123456');
 });
@@ -473,9 +473,9 @@ test('picker interaction prevents dragging without replacing text draft',async()
 test('last edit owns status, stale replies do not alter drafts and failed snapshot can retry',async()=>{
  const h=await createPopupContext(['note'],'dark',{delayed:true});
  pick(h,'#111111');pick(h,'#222222');
- assert.equal(h.document.getElementById('labels-status').textContent,'Сохранение…');
+ assert.equal(h.document.getElementById('labels-status').textContent,'Saving…');
  h.pending[1]();await waitForAsyncWork();h.pending[0](false);await waitForAsyncWork();
- assert.equal(h.document.getElementById('labels-status').textContent,'Сохранено');assert.equal(rowPicker(h).value,'#222222');
+ assert.equal(h.document.getElementById('labels-status').textContent,'Saved');assert.equal(rowPicker(h).value,'#222222');
  pick(h,'#333333');h.pending[2](false);await waitForAsyncWork();
  assert.equal(h.document.getElementById('labels-retry').hidden,false);
  assert.equal(rowPicker(h).value,'#333333');assert.equal(h.document.body.getAttribute('data-theme'),'dark');
@@ -485,7 +485,7 @@ test('last edit owns status, stale replies do not alter drafts and failed snapsh
 test('unknown storage schema blocks edits without replacing stored settings',async()=>{
  const stored={[L.KEY]:{schemaVersion:99}},h=await createPopupContext(undefined,undefined,{stored});
  assert.equal(h.getSetCallCount(),0);assert.equal(h.document.getElementById('new-label').disabled,true);
- assert.match(h.document.getElementById('labels-status').textContent,/версия/);assert.deepEqual(h.storedItems,stored);
+ assert.match(h.document.getElementById('labels-status').textContent,/version/);assert.deepEqual(h.storedItems,stored);
 });
 const emojiButton=(h,index=0)=>h.document.getElementById('label-list').children[index].children[1];
 const selectEmoji=async(h,value,index=0)=>{emojiButton(h,index).click();await waitForAsyncWork();h.document.getElementById('emoji-container').children[0].dispatchEvent({type:'emoji-click-sync',detail:{unicode:value}});await waitForAsyncWork();};
@@ -529,7 +529,7 @@ test('late emoji save failure cannot roll back flag or latest choice; retry send
  const h=await createPopupContext(['note'],undefined,{delayed:true});
  await selectEmoji(h,'👍');const toggle=h.document.getElementById('emojis-enabled');toggle.checked=false;toggle.dispatchEvent({type:'change'});
  h.pending[1]();await waitForAsyncWork();h.pending[0](false);await waitForAsyncWork();
- assert.equal(h.document.getElementById('labels-status').textContent,'Сохранено');
+ assert.equal(h.document.getElementById('labels-status').textContent,'Saved');
  await selectEmoji(h,'💡');h.pending[2](false);await waitForAsyncWork();h.document.getElementById('labels-retry').click();h.pending[3]();await waitForAsyncWork();
  assert.equal(h.storedItems[L.KEY].emojisEnabled,false);assert.equal(h.storedItems[L.KEY].items[0].emoji,'💡');
 });
@@ -540,4 +540,20 @@ test('delayed picker choice cannot write into a reopened row',async()=>{
  h.document.getElementById('emoji-container').children[0].dispatchEvent({type:'emoji-click-sync',detail});
  h.document.getElementById('emoji-back').click();emojiButton(h,1).click();resolve({unicode:'💡'});await waitForAsyncWork();
  assert.equal(emojiButton(h,0).textContent,'＋');assert.equal(emojiButton(h,1).textContent,'＋');assert.equal(h.getSetCallCount(),0);
+});
+
+test('English popup keeps multilingual records and existing settings without migration writes',async()=>{
+ const state={schemaVersion:2,emojisEnabled:false,items:[{text:'вопрос',emoji:'👩🏽‍💻',color:'#123456'},{text:'вопрос',emoji:'',color:'#abcdef'}]};
+ const stored={...L.snapshot(state),ccTheme:'dark'},before=JSON.stringify(stored);
+ const h=await createPopupContext(undefined,undefined,{stored});
+ assert.equal(h.getSetCallCount(),0);assert.equal(JSON.stringify(h.storedItems),before);
+ assert.deepEqual(renderedLabelInputs(h.document).map(x=>x.value),['вопрос','вопрос']);
+ assert.equal(emojiButton(h).getAttribute('aria-label'),'Emoji for label вопрос');
+ assert.equal(rowPicker(h).getAttribute('aria-label'),'Color for label вопрос');
+ assert.equal(h.document.getElementById('emojis-enabled').checked,false);
+ assert.equal(h.document.getElementById('theme-toggle').getAttribute('aria-label'),'Switch to light theme');
+ emojiButton(h).click();await waitForAsyncWork();assert.equal(h.document.getElementById('emoji-title').textContent,'Emoji for label вопрос');
+ h.document.getElementById('emoji-back').click();assert.equal(h.getSetCallCount(),0);
+ const empty=await createPopupContext(undefined,undefined,{stored:L.snapshot({...state,items:[]})});
+ assert.equal(empty.getSetCallCount(),0);assert.deepEqual(renderedLabelInputs(empty.document),[]);
 });

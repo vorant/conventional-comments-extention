@@ -34,10 +34,10 @@
     const box = document.createElement("div");
     box.className = "cc-profile-notice"; box.setAttribute("data-cc-owned", "true"); box.setAttribute("role", "status");
     const text = document.createElement("p"); text.textContent = `${profile.name}: ${detail}`;
-    const settings = document.createElement("button"); settings.type = "button"; settings.textContent = "Открыть настройки профиля";
+    const settings = document.createElement("button"); settings.type = "button"; settings.textContent = "Open profile settings";
     const profileId = profile.id;
     settings.addEventListener("click", () => chrome.runtime.sendMessage({ type: "cc-open-settings", id: profileId }).catch(() => {}));
-    const close = document.createElement("button"); close.type = "button"; close.textContent = "Закрыть";
+    const close = document.createElement("button"); close.type = "button"; close.textContent = "Close";
     close.addEventListener("click", () => { box.remove(); notices.delete(key); });
     box.append(text, settings, close);
     if (!noticeHost?.isConnected) {
@@ -135,7 +135,7 @@
         chrome.runtime.sendMessage({ type: "cc-config" }), chrome.storage.sync.get(L.KEYS)
       ]);
       if (id !== loadId) return;
-      if (!response?.ok) throw new Error("Профили недоступны");
+      if (!response?.ok) throw new Error("Profiles are unavailable");
       profiles = response.profiles;
       let nextLabels;
       try { const settings = L.readSettings(stored); nextLabels = settings.items; emojisEnabled = settings.emojisEnabled; }

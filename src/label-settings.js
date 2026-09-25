@@ -27,12 +27,12 @@
       .map((text) => ({ text, color: Object.hasOwn(PALETTE, text) ? PALETTE[text] : NEUTRAL, emoji: defaultEmoji(text) }));
   }
   function normalize(items) {
-    if (!Array.isArray(items)) throw new Error("Неизвестный формат labels. Настройки не перезаписаны.");
+    if (!Array.isArray(items)) throw new Error("Unknown label format. Settings have not been overwritten.");
     return items.filter((item) => item && typeof item.text === "string" && item.text.trim())
       .map((item) => ({ text: item.text.trim(), color: color(item.color), emoji: emoji(item.emoji) }));
   }
   function settings(value) {
-    if (!value || ![1, 2].includes(value.schemaVersion)) throw new Error("Неизвестная версия настроек labels. Настройки не перезаписаны.");
+    if (!value || ![1, 2].includes(value.schemaVersion)) throw new Error("Unknown label settings version. Settings have not been overwritten.");
     const items = normalize(value.items);
     if (value.schemaVersion === 1) for (const item of items) item.emoji = defaultEmoji(item.text);
     return { schemaVersion: 2, emojisEnabled: value.emojisEnabled !== false, items };

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Conventional Comments",
-  "description": "Панель Conventional Comments для GitHub, GitLab, Bitbucket и настраиваемых сайтов.",
+  "description": "Add Conventional Comments labels to code reviews on GitHub, GitLab, Bitbucket, and configured company sites.",
   "version": "0.2.0",
   "permissions": [
     "storage",

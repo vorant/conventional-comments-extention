@@ -10,7 +10,7 @@
   const draft = (p) => ({ ...p, paths: p.paths.join("\n") });
   async function send(message) {
     const result = await chrome.runtime.sendMessage(message);
-    if (!result?.ok) throw new Error(result?.error || "Нет связи с расширением. Перезагрузите его.");
+    if (!result?.ok) throw new Error(result?.error || "Cannot connect to the extension. Reload it.");
   }
   function valid(state) {
     return P.validate({ ...state.draft, paths: state.draft.paths.split("\n").map((s) => s.trim()).filter(Boolean) }, [], document);
@@ -23,7 +23,7 @@
     $("profile-status").textContent = state.status;
     $("profile-status").setAttribute("data-error", String(state.error));
     $("profile-connect").disabled = !confirmed(state);
-    if (!confirmed(state)) $("profile-access").textContent = "Доступ можно разрешить после сохранения корректных настроек.";
+    if (!confirmed(state)) $("profile-access").textContent = "Save valid settings before allowing site access.";
     else access(state);
   }
   async function access(state) {
@@ -31,13 +31,13 @@
     let granted = false;
     try { granted = await chrome.permissions.contains({ origins: [P.originPattern(origin)] }); } catch { /* No permission. */ }
     if (selected !== state || version !== state.version || !confirmed(state)) return;
-    $("profile-access").textContent = granted ? "Доступ к сайту разрешён." : "Нет доступа. Разрешите доступ к сайту.";
+    $("profile-access").textContent = granted ? "Site access granted." : "No access. Allow site access to continue.";
   }
   function render(state) {
     selected = state;
     for (const field of fields) $("profile-" + field).value = state.draft[field];
     $("profile-list").value = state.draft.id;
-    $("profile-warning").textContent = state.draft.id !== "github" ? "Предварительный профиль: проверьте вручную на вашем сайте. Для GitLab выберите Markdown-режим. Тип редактора и размещение определяются предустановкой." : "";
+    $("profile-warning").textContent = state.draft.id !== "github" ? "Preview profile: verify it on your site. For GitLab, use Markdown mode. The preset determines the editor type and placement." : "";
     $("profile-panelCss").value = state.css.draft;
     showCss(state);
     show(state);
@@ -45,18 +45,18 @@
   function write(state, profile, reset = false) {
     const version = ++state.version;
     state.last = key(profile);
-    state.pending = true; state.error = false; state.status = "Сохранение…";
+    state.pending = true; state.error = false; state.status = "Saving…";
     show(state);
     // Send immediately: the worker owns the queue even if the settings page closes.
     const request = send(reset ? { type: "cc-remove", id: profile.id } : { type: "cc-save", profile });
     request.then(() => {
       if (version !== state.version) return;
-      state.saved = key(profile); state.pending = false; state.status = reset ? "Встроенные настройки восстановлены." : "Сохранено";
+      state.saved = key(profile); state.pending = false; state.status = reset ? "Default profile settings restored." : "Saved";
       show(state);
     }, (error) => {
       if (version !== state.version) return;
       state.pending = false; state.last = null; state.error = true;
-      state.status = `${error.message} Измените поле, чтобы повторить сохранение.`;
+      state.status = `${error.message} Edit a field to retry saving.`;
       show(state);
     });
     return request;
@@ -70,7 +70,7 @@
     state.css.draft = value;
     state.css.last = value;
     state.css.error = false;
-    state.css.status = "Сохранение…";
+    state.css.status = "Saving…";
     const version = ++state.css.version;
     showCss(state);
     return version;
@@ -78,12 +78,12 @@
   function finishCss(state, version, request, reset) {
     request.then(() => {
       if (state.css.version !== version) return;
-      state.css.status = reset ? "Стандартные стили восстановлены." : "Сохранено";
+      state.css.status = reset ? "Default styles restored." : "Saved";
       showCss(state);
     }, (error) => {
       if (state.css.version !== version) return;
       state.css.last = null; state.css.error = true;
-      state.css.status = `${error.message} Измените CSS или повторите восстановление.`;
+      state.css.status = `${error.message} Edit the CSS or retry resetting styles.`;
       showCss(state);
     });
   }
@@ -138,7 +138,7 @@
       Promise.resolve(request).then(async (granted) => {
         if (granted) await send({ type: "cc-refresh" });
         if (version !== state.version) return;
-        state.status = granted ? "Доступ разрешён." : "Доступ не предоставлен. Настройки сохранены.";
+        state.status = granted ? "Access granted." : "Access not granted. Settings saved.";
         // Permission denial does not make the saved snapshot invalid.
         show(state);
       }).catch((error) => {
