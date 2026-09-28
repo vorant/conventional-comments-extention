@@ -43,7 +43,3 @@ Each profile has one site address: changing it replaces that profile's previous 
 ![GitLab profile configured for an example company origin, with review paths and the Allow site access button.](docs/screenshots/company-settings.png)
 
 *Example configuration before granting access. Saving settings alone does not grant site access.*
-
-## Developer documentation
-
-See [README-DEVELOPER.md](README-DEVELOPER.md) for local installation, development commands, packaging, and technical reference.

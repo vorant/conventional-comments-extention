@@ -84,7 +84,7 @@ test("popup static assets are wired without external dependencies", () => {
   assert.ok(fs.existsSync(fontLicensePath));
 });
 
-test("user documentation links to developer reference and bundled screenshots", () => {
+test("user documentation includes usage guidance and bundled screenshots", () => {
   const readme = readText("README.md");
   const listing = readText("docs/chrome-web-store-description.txt");
   for (const text of [readme, listing]) {
@@ -93,9 +93,6 @@ test("user documentation links to developer reference and bundled screenshots", 
     assert.match(text, /Allow site access/);
     assert.match(text, /preview support/);
   }
-  assert.match(readme, /\]\(README-DEVELOPER\.md\)/);
-  assert.match(readText("README-DEVELOPER.md"), /## Команды разработки/);
-  assert.match(readText("README-DEVELOPER.md"), /## Локальная установка/);
   const images = [...readme.matchAll(/!\[([^\]]+)\]\(([^)]+)\)/g)];
   assert.ok(images.length >= 3);
   for (const [, alt, file] of images) {
