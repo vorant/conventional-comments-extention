@@ -1,0 +1,126 @@
+(function (root) {
+  "use strict";
+  const standardCss = typeof module !== "undefined" ? require("./panel-styles") : root.CCPanelStyles;
+  const KEY = "ccSiteProfiles";
+  const defaults = [
+    { id: "github", name: "GitHub", origin: "https://github.com", paths: ["/*/*/pull/*"], enabled: true,
+      editorSelector: 'textarea[name="comment[body]"], textarea[aria-label*="comment" i], textarea[placeholder*="comment" i]',
+      containerSelector: '[class*="MarkdownEditor-module__container"], [class*="AddCommentEditor-module__ConversationCommentBox"], .js-previewable-comment-form, form',
+      anchorSelector: '', placement: "before", editorAdapter: "textarea", anchorMode: "github-wrapper" },
+    { id: "gitlab", name: "GitLab", origin: "https://gitlab.com", paths: ["/*/-/merge_requests/*"], enabled: true,
+      editorSelector: 'textarea[name="note[note]"], textarea.js-note-text', containerSelector: '.note-form, .js-note-form, form',
+      anchorSelector: '', placement: "before", editorAdapter: "textarea", anchorMode: "editor" },
+    { id: "bitbucket", name: "Bitbucket", origin: "https://bitbucket.org", paths: ["/*/*/pull-requests/*"], enabled: true,
+      editorSelector: '.ProseMirror[contenteditable="true"]', containerSelector: '.ak-editor-content-area, .akEditor, form',
+      anchorSelector: '', placement: "before", editorAdapter: "rich-text", anchorMode: "editor" }
+  ];
+  const clone = (value) => JSON.parse(JSON.stringify(value));
+  function config(value) {
+    if (value === undefined) return { schemaVersion: 1, overrides: {}, custom: [], revision: 0 };
+    if (!value || value.schemaVersion !== 1 || !value.overrides || typeof value.overrides !== "object" || Array.isArray(value.overrides) || !Array.isArray(value.custom)) {
+      throw new Error("Unknown profile format. Settings have not been overwritten.");
+    }
+    return clone(value);
+  }
+  const editable = ["origin", "paths", "editorSelector", "placement"];
+  function all(value) {
+    const data = config(value);
+    return defaults.map((base) => {
+      const profile = { ...clone(base), builtin: true, revision: data.revision || 0 };
+      for (const field of editable) {
+        if (data.overrides[base.id]?.[field] === undefined) continue;
+        try {
+          profile[field] = validate({ ...profile, [field]: data.overrides[base.id][field] }, [], root.document)[field];
+        } catch { /* An obsolete field falls back independently to its default. */ }
+      }
+      profile.panelCss = typeof data.overrides[base.id]?.panelCss === "string" ? data.overrides[base.id].panelCss : standardCss;
+      return profile;
+    });
+  }
+
+  function pathMatches(mask, pathname) {
+    const pattern = mask.split("*").map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+    return new RegExp(`^${pattern}$`).test(pathname);
+  }
+  // Intersection of two glob languages (literal characters and '*'), without sampling URLs.
+  function overlaps(a, b) {
+    const queue = [[0, 0]], seen = new Set();
+    while (queue.length) {
+      const [i, j] = queue.pop(), key = `${i}:${j}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (i === a.length && j === b.length) return true;
+      if (a[i] === "*") queue.push([i + 1, j]);
+      if (b[j] === "*") queue.push([i, j + 1]);
+      if (i < a.length && j < b.length && (a[i] === "*" || b[j] === "*" || a[i] === b[j])) {
+        queue.push([a[i] === "*" ? i : i + 1, b[j] === "*" ? j : j + 1]);
+      }
+    }
+    return false;
+  }
+  function matches(profile, href) {
+    try {
+      const url = new URL(href);
+      return profile.enabled && profile.origin === url.origin && profile.paths.some((p) => pathMatches(p, url.pathname));
+    } catch { return false; }
+  }
+  function select(profiles, href) {
+    return defaults.map((base) => profiles.find((p) => p.id === base.id)).find((p) => p && matches(p, href)) || null;
+  }
+  function originPattern(origin) {
+    const url = new URL(origin);
+    // Chrome host permissions cover all ports; runtime matching still checks the exact origin.
+    return `${url.protocol}//${url.hostname}/*`;
+  }
+  function validate(input, profiles, doc) {
+    const base = defaults.find((p) => p.id === input?.id);
+    if (!base) throw new Error("Unknown built-in profile.");
+    const p = { ...clone(base), builtin: true };
+    for (const field of editable) if (input[field] !== undefined) p[field] = clone(input[field]);
+    let url;
+    try { url = new URL(p.origin); } catch { throw new Error("Site URL: enter a full HTTP(S) site URL."); }
+    if (!/^https?:$/.test(url.protocol) || url.hostname.includes("*") || url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+      throw new Error("Site URL: enter only the site origin, without a path, credentials, or parameters.");
+    }
+    p.origin = url.origin;
+    if (!Array.isArray(p.paths) || !p.paths.length || p.paths.length > 20 || p.paths.some((s) => typeof s !== "string" || !s.startsWith("/") || s.length > 250 || /[?#\s]/.test(s))) {
+      throw new Error("Pages: paths must start with /; use * as a wildcard (up to 20 paths, 250 characters each).");
+    }
+    if (typeof p.editorSelector !== "string" || p.editorSelector.length > 2000 || !p.editorSelector.trim()) throw new Error("Editor selector: enter a CSS selector.");
+    p.editorSelector = p.editorSelector.trim();
+    if (doc) {
+      try { doc.querySelector(p.editorSelector); } catch { throw new Error("Editor selector: invalid CSS selector."); }
+    }
+    if (!["before", "after"].includes(p.placement)) throw new Error("Unknown panel position.");
+    return p;
+  }
+  function save(value, p) {
+    const data = config(value), valid = validate(p, [], root.document);
+    const item = Object.fromEntries(editable.map((field) => [field, valid[field]]));
+    data.revision = (data.revision || 0) + 1;
+    if (typeof data.overrides[p.id]?.panelCss === "string") item.panelCss = data.overrides[p.id].panelCss;
+    data.overrides[p.id] = item;
+    return data;
+  }
+  function saveCss(value, id, css, reset = false) {
+    if (!defaults.some((p) => p.id === id)) throw new Error("Unknown built-in profile.");
+    if (!reset && typeof css !== "string") throw new Error("CSS must be a string.");
+    const data = config(value);
+    const item = { ...data.overrides[id] };
+    if (reset) delete item.panelCss;
+    else item.panelCss = css;
+    data.overrides[id] = item;
+    data.revision = (data.revision || 0) + 1;
+    return data;
+  }
+  function remove(value, id) {
+    if (!defaults.some((p) => p.id === id)) throw new Error("Unknown built-in profile.");
+    const data = config(value);
+    data.revision = (data.revision || 0) + 1;
+    delete data.overrides[id];
+    return data;
+  }
+  const api = { KEY, standardCss, saveCss, defaults, config, all, pathMatches, overlaps, matches, select, originPattern, validate, save, remove };
+  root.CCProfiles = api;
+  if (typeof module !== "undefined") module.exports = api;
+})(globalThis);

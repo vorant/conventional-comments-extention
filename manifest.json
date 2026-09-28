@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "Conventional Comments",
+  "description": "Add Conventional Comments labels to code reviews on GitHub, GitLab, Bitbucket, and configured company sites.",
+  "version": "0.2.0",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
+  "icons": {
+    "16": "src/icons/icon-16.png",
+    "32": "src/icons/icon-32.png",
+    "48": "src/icons/icon-48.png",
+    "128": "src/icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "src/popup.html",
+    "default_icon": {
+      "16": "src/icons/icon-16.png",
+      "32": "src/icons/icon-32.png",
+      "48": "src/icons/icon-48.png",
+      "128": "src/icons/icon-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://github.com/*"
+      ],
+      "js": [
+        "src/panel-styles.js",
+        "src/label-settings.js",
+        "src/site-profiles.js",
+        "src/editor-adapters.js",
+        "src/panel-engine.js",
+        "src/content-script.js"
+      ],
+      "css": [
+        "src/content-style.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "minimum_chrome_version": "102",
+  "host_permissions": [
+    "https://github.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "options_ui": {
+    "page": "src/options.html",
+    "open_in_tab": true
+  }
+}

@@ -1,0 +1,103 @@
+* {
+  box-sizing: border-box;
+}
+
+@font-face {
+  font-family: "CC Nerd Symbols";
+  src: url("fonts/symbols-nerd-font.woff2") format("woff2");
+  font-display: block;
+}
+
+:root {
+  --cc-popup-bg: #ffffff;
+  --cc-popup-fg: #24292f;
+  --cc-popup-muted: #57606a;
+  --cc-popup-border: #d0d7de;
+  --cc-popup-input-bg: #ffffff;
+  --cc-popup-button-bg: #f6f8fa;
+  --cc-popup-button-hover: #f3f4f6;
+  --cc-popup-focus: rgba(9, 105, 218, 0.32);
+  --cc-popup-danger: #cf222e;
+  --cc-popup-danger-bg: #ffebe9;
+  --cc-popup-danger-hover: #ffdad7;
+  --cc-popup-drag-icon: #57606a;
+  --cc-popup-drag-icon-active: #0969da;
+}
+
+body[data-theme="dark"] {
+  --cc-popup-bg: #0d1117;
+  --cc-popup-fg: #e6edf3;
+  --cc-popup-muted: #8b949e;
+  --cc-popup-border: #30363d;
+  --cc-popup-input-bg: #161b22;
+  --cc-popup-button-bg: #21262d;
+  --cc-popup-button-hover: #30363d;
+  --cc-popup-focus: rgba(88, 166, 255, 0.38);
+  --cc-popup-danger: #ff7b72;
+  --cc-popup-danger-bg: rgba(248, 81, 73, 0.12);
+  --cc-popup-danger-hover: rgba(248, 81, 73, 0.2);
+  --cc-popup-drag-icon: #8b949e;
+  --cc-popup-drag-icon-active: #58a6ff;
+}
+
+body {
+  margin: 0;
+  color: var(--cc-popup-fg);
+  background: var(--cc-popup-bg);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.nf-icon {
+  font-family: "CC Nerd Symbols", "Symbols Nerd Font", monospace;
+  font-size: 14px;
+  line-height: 1;
+}
+
+input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--cc-popup-border);
+  border-radius: 6px;
+  background: var(--cc-popup-input-bg);
+  color: var(--cc-popup-fg);
+  font: inherit;
+  line-height: 20px;
+  padding: 4px 8px;
+}
+
+input:focus {
+  border-color: var(--cc-popup-muted);
+  outline: 2px solid var(--cc-popup-focus);
+  outline-offset: 1px;
+}
+
+button {
+  appearance: none;
+  border: 1px solid var(--cc-popup-border);
+  border-radius: 6px;
+  background: var(--cc-popup-button-bg);
+  color: var(--cc-popup-fg);
+  cursor: pointer;
+  font: inherit;
+  line-height: 20px;
+  padding: 4px 8px;
+}
+
+button:hover,
+button:focus {
+  background: var(--cc-popup-button-hover);
+  border-color: var(--cc-popup-muted);
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+}
+
+button:focus {
+  outline: 2px solid var(--cc-popup-focus);
+  outline-offset: 1px;
+}
