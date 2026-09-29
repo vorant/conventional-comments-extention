@@ -1,6 +1,6 @@
 # Conventional Comments
 
-[![Chrome Web Store version](https://img.shields.io/chrome-web-store/v/dooeolnjlncmolccdpggdpiadkoepjgn?label=Chrome%20Web%20Store)](https://chromewebstore.google.com/detail/dooeolnjlncmolccdpggdpiadkoepjgn)
+[![Install from Chrome Web Store](https://img.shields.io/badge/Chrome_Web_Store-Install-4285F4?style=for-the-badge)](https://chromewebstore.google.com/detail/dooeolnjlncmolccdpggdpiadkoepjgn) 
 
 Add labels such as `suggestion:`, `issue:`, and `question:` to code review comments in Chrome. The extension places label buttons next to the review editor and inserts the selected prefix at the start of your comment. You write and submit the comment using the site's usual controls.
 
