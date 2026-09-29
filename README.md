@@ -1,5 +1,9 @@
 # Conventional Comments
 
+## Available
+<p align="center"><a rel="noreferrer noopener" href="https://chromewebstore.google.com/detail/dark-reader/eimadpbcbfnmbkopoojfekhnkhdbieeh"><img alt="Chrome Web Store" src="https://img.shields.io/badge/Chrome-141e24.svg?&style=for-the-badge&logo=google-chrome&logoColor=white"></a>  
+
+
 Add labels such as `suggestion:`, `issue:`, and `question:` to code review comments in Chrome. The extension places label buttons next to the review editor and inserts the selected prefix at the start of your comment. You write and submit the comment using the site's usual controls.
 
 Based on the original [Conventional Comments](https://conventionalcomments.org/) idea and format. This extension provides configurable labels and optional emoji for that workflow.
