@@ -27,7 +27,7 @@ test("manifest declares GitHub Pull Request content script and popup settings", 
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.options_ui, { page: "src/options.html", open_in_tab: true });
   assert.ok(fs.existsSync(path.join(rootDir, manifest.options_ui.page)));
-  assert.deepEqual(manifest.permissions, ["storage", "scripting", "activeTab"]);
+  assert.deepEqual(manifest.permissions, ["storage", "scripting"]);
   assert.deepEqual(manifest.optional_host_permissions, ["https://*/*", "http://*/*"]);
   assert.equal(manifest.background.service_worker, "src/background.js");
   assert.deepEqual(manifest.icons, expectedIcons);

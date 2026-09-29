@@ -5,8 +5,7 @@
   "version": "0.2.0",
   "permissions": [
     "storage",
-    "scripting",
-    "activeTab"
+    "scripting"
   ],
   "icons": {
     "16": "src/icons/icon-16.png",
