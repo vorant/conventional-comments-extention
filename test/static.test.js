@@ -94,9 +94,12 @@ test("user documentation includes usage guidance and bundled screenshots", () =>
     assert.match(text, /preview support/);
   }
   const images = [...readme.matchAll(/!\[([^\]]+)\]\(([^)]+)\)/g)];
-  assert.ok(images.length >= 3);
-  for (const [, alt, file] of images) {
+  for (const [, alt] of images) {
     assert.ok(alt.trim());
+  }
+  const bundledImages = images.filter(([, , file]) => !/^(?:https?:)?\/\//i.test(file));
+  assert.ok(bundledImages.length >= 3, "README must include at least three bundled screenshots");
+  for (const [, , file] of bundledImages) {
     const bytes = fs.readFileSync(path.join(rootDir, file));
     assert.equal(bytes.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", file);
   }
