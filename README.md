@@ -49,3 +49,5 @@ Each profile has one site address: changing it replaces that profile's previous 
 Local Safari installation on macOS: [installation guide](docs/safari.md).
 
 Local Firefox desktop installation (temporary; browser verification pending): [installation guide](docs/firefox.md).
+
+For Firefox development, install the pinned tools with `npm ci` (Node.js 22+ recommended), then use `make build-firefox`, `make lint-firefox`, `make run-firefox`, or `make package-firefox`. Packaging produces an unsigned `dist/conventional-comments-firefox-<version>.zip`. Run `make help` for all commands; `make package` creates the Chrome ZIP.

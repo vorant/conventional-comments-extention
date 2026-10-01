@@ -2,6 +2,36 @@
 
 This package targets Firefox desktop and uses a temporary installation. Automated packaging and API behavior tests pass. On Firefox 157.0 / macOS 26.7, the temporary package loads, the popup document and Settings open, and theme changes survive page reload. Review-editor behavior and the remaining browser lifecycle checks are still pending. GitLab and Bitbucket remain preview integrations.
 
+## Build tools
+
+Use Node.js 22 or newer (web-ext requires at least Node.js 20), npm 8 or newer, and Make. The tools are pinned to web-ext 10.7.0 in the lockfile and do not ship inside the extension. Install them once from the project directory:
+
+```sh
+npm ci
+```
+
+| Command | Result |
+| --- | --- |
+| `make build-firefox` | Prepare `dist/firefox` for manual loading; equivalent to `npm run package:firefox` |
+| `make lint-firefox` | Prepare and validate the current Firefox package |
+| `make run-firefox` | Prepare, validate and launch Firefox with a temporary extension in a separate temporary profile |
+| `make package-firefox` | Prepare, validate and create `dist/conventional-comments-firefox-<version>.zip` |
+| `make help` | Show these commands and the existing Chrome packaging command |
+
+The ZIP version comes from `manifest.json`. Repeating packaging replaces the same version's Firefox ZIP with current resources. The ZIP is unsigned; it does not enable permanent installation. The existing `make package` still creates the Chrome ZIP, and `npm run package:safari` prepares the Safari folder.
+
+If Firefox is not found automatically, provide its executable path:
+
+```sh
+make run-firefox FIREFOX_BIN="/Applications/Firefox.app/Contents/MacOS/firefox"
+```
+
+The development browser uses a temporary profile, so your usual Firefox login and settings are not copied. Stop the development command with Ctrl+C and run it again after editing `src`: web-ext watches the prepared `dist/firefox` folder, not the original source tree. No source-copy watcher is provided.
+
+Validation errors stop packaging and launch. Warnings remain visible. The initial web-ext check reports missing Firefox data-collection metadata and an unsafe innerHTML assignment in bundled code; these warnings do not establish AMO readiness. Tools are resolved locally and never silently downloaded by a build command; if they are missing, run `npm ci`.
+
+## Manual temporary installation
+
 1. From the project directory, run `npm run package:firefox`.
 2. In Firefox, open `about:debugging#/runtime/this-firefox`.
 3. Click **Load Temporary Add-on…** and select `dist/firefox/manifest.json` in this project.

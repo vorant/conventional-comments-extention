@@ -6,6 +6,12 @@
   "scripts": {
     "package:firefox": "node scripts/package-firefox.js",
     "package:safari": "node scripts/package-safari.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "lint:firefox": "node scripts/firefox-tools.js lint",
+    "run:firefox": "node scripts/firefox-tools.js run",
+    "zip:firefox": "node scripts/firefox-tools.js zip"
+  },
+  "devDependencies": {
+    "web-ext": "10.7.0"
   }
 }
