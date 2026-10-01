@@ -3,7 +3,7 @@ const html=fs.readFileSync(`${__dirname}/../src/options.html`,'utf8');const js=f
 const flush=async()=>{for(let i=0;i<40;i++)await Promise.resolve();};
 function setup({delayed=false,search='',initialConfig,theme}={}){
   const doc=parse(new Document(),html);let config=initialConfig,permission=false;let themeListener;const calls=[],pending=[];
-  const chrome={storage:{onChanged:{addListener(fn){themeListener=fn;}},sync:{get(key,cb){cb({ccTheme:theme});}},local:{async get(){return {[P.KEY]:config};}}},permissions:{async contains(){return permission;},request(o){calls.push(['request',o]);return Promise.resolve(permission);}},
+  const chrome={storage:{onChanged:{addListener(fn){themeListener=fn;}},sync:{async get(){return {ccTheme:theme};}},local:{async get(){return {[P.KEY]:config};}}},permissions:{async contains(){return permission;},request(o){calls.push(['request',o]);return Promise.resolve(permission);}},
     runtime:{sendMessage(m){calls.push(['message',m]);return new Promise(resolve=>{const complete=(ok=true)=>{if(ok){if(m.type==='cc-save')config=P.save(config,m.profile);if(m.type==='cc-remove')config=P.remove(config,m.id);if(m.type==='cc-save-css'||m.type==='cc-reset-css')config=P.saveCss(config,m.id,m.css,m.type==='cc-reset-css');}resolve({ok,error:'Ошибка записи'});};if(delayed)pending.push(complete);else complete();});}}};
   vm.runInNewContext(fs.readFileSync(`${__dirname}/../src/theme.js`,'utf8'),{document:doc,chrome});
   vm.runInNewContext(js,{document:doc,CCProfiles:P,chrome,URLSearchParams,location:{search}});

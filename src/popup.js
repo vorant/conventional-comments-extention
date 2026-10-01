@@ -1,5 +1,6 @@
 (function () {
   "use strict";
+  const extensionApi = globalThis.browser ?? globalThis.chrome;
 
   const L = globalThis.CCLabels;
   const ICONS = {
@@ -26,7 +27,7 @@
     const current = ++version;
     showStatus("Saving…");
     try {
-      const result = await chrome.runtime.sendMessage({ type: "cc-save-labels", settings });
+      const result = await extensionApi.runtime.sendMessage({ type: "cc-save-labels", settings });
       if (!result?.ok) throw new Error(result?.error || "Cannot connect to the extension.");
       if (current === version) showStatus("Saved");
     } catch (error) {
@@ -318,7 +319,7 @@
   }
 
   async function init() {
-    document.getElementById("open-settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
+    document.getElementById("open-settings").addEventListener("click", () => extensionApi.runtime.openOptionsPage());
     element("emoji-back").addEventListener("click", () => closeEmoji());
     element("emoji-none").addEventListener("click", () => chooseEmoji(""));
     element("emoji-retry").addEventListener("click", loadEmoji);
@@ -330,7 +331,7 @@
     });
     retry.addEventListener("click", () => saveLabels());
     try {
-      const settings = L.readSettings(await chrome.storage.sync.get(L.KEYS));
+      const settings = L.readSettings(await extensionApi.storage.sync.get(L.KEYS));
       labels = settings.items;
       emojisEnabled = settings.emojisEnabled;
       lastSnapshot = JSON.stringify(settings);

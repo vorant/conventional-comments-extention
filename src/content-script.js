@@ -1,5 +1,6 @@
 (function () {
   "use strict";
+  const extensionApi = globalThis.browser ?? globalThis.chrome;
   if (globalThis.__ccLabelsStarted) return;
   globalThis.__ccLabelsStarted = true;
   const L = globalThis.CCLabels;
@@ -36,7 +37,7 @@
     const text = document.createElement("p"); text.textContent = `${profile.name}: ${detail}`;
     const settings = document.createElement("button"); settings.type = "button"; settings.textContent = "Open profile settings";
     const profileId = profile.id;
-    settings.addEventListener("click", () => chrome.runtime.sendMessage({ type: "cc-open-settings", id: profileId }).catch(() => {}));
+    settings.addEventListener("click", () => extensionApi.runtime.sendMessage({ type: "cc-open-settings", id: profileId }).catch(() => {}));
     const close = document.createElement("button"); close.type = "button"; close.textContent = "Close";
     close.addEventListener("click", () => { box.remove(); notices.delete(key); });
     box.append(text, settings, close);
@@ -132,7 +133,7 @@
     const id = ++loadId;
     try {
       const [response, stored] = await Promise.all([
-        chrome.runtime.sendMessage({ type: "cc-config" }), chrome.storage.sync.get(L.KEYS)
+        extensionApi.runtime.sendMessage({ type: "cc-config" }), extensionApi.storage.sync.get(L.KEYS)
       ]);
       if (id !== loadId) return;
       if (!response?.ok) throw new Error("Profiles are unavailable");
@@ -144,13 +145,13 @@
       labels = nextLabels; scan();
     } catch { if (id === loadId) { profiles = []; clearUI(); } }
   }
-  chrome.runtime.onMessage.addListener((message, sender, respond) => {
+  extensionApi.runtime.onMessage.addListener((message, sender, respond) => {
     if (message.type === "cc-ping") { respond({ ok: true }); return; }
     if (message.type === "cc-reload") { reload().then(() => respond({ ok: true })); return true; }
     if (message.type === "cc-stop") { ++loadId; profiles = []; profile = null; signature = ""; clearUI(); respond({ ok: true }); return; }
 
   });
-  chrome.storage.onChanged.addListener((changes, area) => {
+  extensionApi.storage.onChanged.addListener((changes, area) => {
     if (area === "sync" && (changes[L.KEY] || changes[L.LEGACY_KEY]) || area === "local" && changes[P.KEY]) reload();
   });
   function start() {

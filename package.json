@@ -4,6 +4,7 @@
   "private": true,
   "description": "Conventional Comments для GitHub и настраиваемых сайтов.",
   "scripts": {
+    "package:firefox": "node scripts/package-firefox.js",
     "package:safari": "node scripts/package-safari.js",
     "test": "node --test test/*.test.js"
   }

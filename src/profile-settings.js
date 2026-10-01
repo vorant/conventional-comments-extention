@@ -1,5 +1,6 @@
 (function () {
   "use strict";
+  const extensionApi = globalThis.browser ?? globalThis.chrome;
   const P = globalThis.CCProfiles;
   const $ = (id) => document.getElementById(id);
   const fields = ["origin", "editorSelector", "placement", "paths"];
@@ -9,7 +10,7 @@
   const key = (p) => JSON.stringify(fields.map((field) => p[field]));
   const draft = (p) => ({ ...p, paths: p.paths.join("\n") });
   async function send(message) {
-    const result = await chrome.runtime.sendMessage(message);
+    const result = await extensionApi.runtime.sendMessage(message);
     if (!result?.ok) throw new Error(result?.error || "Cannot connect to the extension. Reload it.");
   }
   function valid(state) {
@@ -29,7 +30,7 @@
   async function access(state) {
     const version = state.version, origin = valid(state).origin;
     let granted = false;
-    try { granted = await chrome.permissions.contains({ origins: [P.originPattern(origin)] }); } catch { /* No permission. */ }
+    try { granted = await extensionApi.permissions.contains({ origins: [P.originPattern(origin)] }); } catch { /* No permission. */ }
     if (selected !== state || version !== state.version || !confirmed(state)) return;
     $("profile-access").textContent = granted ? "Site access granted." : "No access. Allow site access to continue.";
   }
@@ -134,7 +135,7 @@
     if (fields.some((field) => $("profile-" + field).value !== state.draft[field]) || !confirmed(state)) return;
     const version = state.version;
     try {
-      const request = chrome.permissions.request({ origins: [P.originPattern(valid(state).origin)] });
+      const request = extensionApi.permissions.request({ origins: [P.originPattern(valid(state).origin)] });
       Promise.resolve(request).then(async (granted) => {
         if (granted) await send({ type: "cc-refresh" });
         if (version !== state.version) return;
@@ -148,7 +149,7 @@
     } catch (error) { state.status = error.message; show(state); }
   });
   async function load() {
-    const stored = await chrome.storage.local.get(P.KEY);
+    const stored = await extensionApi.storage.local.get(P.KEY);
     for (const p of P.all(stored[P.KEY])) {
       states.set(p.id, { css: { draft: p.panelCss, last: p.panelCss, version: 0, error: false, status: "" }, draft: draft(p), saved: key(p), last: key(p), version: 0, pending: false, error: false, status: "" });
       const option = document.createElement("option"); option.value = p.id; option.textContent = p.name; $("profile-list").append(option);

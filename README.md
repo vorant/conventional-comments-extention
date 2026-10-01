@@ -47,3 +47,5 @@ Each profile has one site address: changing it replaces that profile's previous 
 *Example configuration before granting access. Saving settings alone does not grant site access.*
 
 Local Safari installation on macOS: [installation guide](docs/safari.md).
+
+Local Firefox desktop installation (temporary; browser verification pending): [installation guide](docs/firefox.md).

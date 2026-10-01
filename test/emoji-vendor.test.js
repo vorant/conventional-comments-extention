@@ -12,7 +12,7 @@ test('pinned vendor modules, English data and licenses are complete and unchange
  const data=require('../src/vendor/emoji-picker-element-data/en.json');
  assert.equal(data.find(x=>x.emoji==='💡').annotation,'light bulb');
  for(const name of ['emoji-picker-element','emoji-picker-element-data'])assert.match(fs.readFileSync(path.join(root,name,'LICENSE'),'utf8'),/Apache License/);
- const loader=fs.readFileSync('src/emoji-picker.js','utf8');assert.match(loader,/dataSource: chrome.runtime.getURL\("src\/vendor\/emoji-picker-element-data\/en.json"\)/);
+ const loader=fs.readFileSync('src/emoji-picker.js','utf8');assert.match(loader,/dataSource: extensionApi.runtime.getURL\("src\/vendor\/emoji-picker-element-data\/en.json"\)/);
  assert.match(loader,/locale: "en"/);
  assert.equal(require('../src/vendor/emoji-picker-element/package.json').version,'1.29.1');
  assert.equal(require('../src/vendor/emoji-picker-element-data/package.json').version,'1.8.0');

@@ -1,59 +1,25 @@
 (function () {
   "use strict";
+  const extensionApi = globalThis.browser ?? globalThis.chrome;
   const THEME_STORAGE_KEY = "ccTheme";
   const THEMES = ["light", "dark"];
   const ICONS = { moon: String.fromCodePoint(0xf186), sun: String.fromCodePoint(0xf05a8) }; // nf-md-white_balance_sunny
   let theme = "light";
-  const getStorageArea = () => globalThis.chrome?.storage?.sync;
+  const getStorageArea = () => extensionApi?.storage?.sync;
   function normalizeTheme(value) {
     return THEMES.includes(value) ? value : "light";
   }
 
-  function readTheme() {
-    const storage = getStorageArea();
-    if (!storage || typeof storage.get !== "function") {
-      return Promise.resolve("light");
-    }
-
-    return new Promise((resolve) => {
-      let settled = false;
-      const settle = (value) => {
-        if (!settled) {
-          settled = true;
-          resolve(normalizeTheme(value));
-        }
-      };
-
-      try {
-        const result = storage.get(THEME_STORAGE_KEY, (items) => {
-          settle(items && items[THEME_STORAGE_KEY]);
-        });
-
-        if (result && typeof result.then === "function") {
-          result.then((items) => settle(items && items[THEME_STORAGE_KEY]), () => settle(undefined));
-        }
-      } catch (error) {
-        settle(undefined);
-      }
-    });
+  async function readTheme() {
+    try {
+      const items = await getStorageArea()?.get(THEME_STORAGE_KEY);
+      return normalizeTheme(items?.[THEME_STORAGE_KEY]);
+    } catch { return "light"; }
   }
 
-  function saveTheme() {
-    const storage = getStorageArea();
-    if (!storage || typeof storage.set !== "function") {
-      return Promise.resolve();
-    }
-
-    return new Promise((resolve) => {
-      try {
-        const result = storage.set({ [THEME_STORAGE_KEY]: theme }, resolve);
-        if (result && typeof result.then === "function") {
-          result.then(resolve, resolve);
-        }
-      } catch (error) {
-        resolve();
-      }
-    });
+  async function saveTheme() {
+    try { await getStorageArea()?.set({ [THEME_STORAGE_KEY]: theme }); }
+    catch { /* Keep the selected theme for this page when storage is unavailable. */ }
   }
 
   function applyTheme() {
@@ -77,7 +43,7 @@
 
   let revision = 0;
   applyTheme();
-  globalThis.chrome?.storage?.onChanged?.addListener((changes, area) => {
+  extensionApi?.storage?.onChanged?.addListener((changes, area) => {
     if (area !== "sync" || !changes[THEME_STORAGE_KEY]) return;
     revision++;
     theme = normalizeTheme(changes[THEME_STORAGE_KEY].newValue);
